@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRappels } from "../../hooks";
 import { fmtDA, fmtDate } from "../../shared/lib/format";
 import type { ApresGaiaRappel } from "../../types";
@@ -16,6 +16,22 @@ export default function RappelBell() {
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const box = useRef<HTMLDivElement>(null);
+
+  // The list closes on Escape or on a click anywhere outside it.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    const onDown = (e: MouseEvent) => {
+      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("mousedown", onDown);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("mousedown", onDown);
+    };
+  }, [open]);
 
   const openClient = (r: ApresGaiaRappel) => {
     dismissToast(r.id);
@@ -32,12 +48,12 @@ export default function RappelBell() {
 
   return (
     <>
-      <div className="no-print fixed top-3 right-4 z-40">
+      <div ref={box} className="no-print fixed top-3 right-4 z-40">
         <button
           onClick={() => setOpen((o) => !o)}
           aria-label={`Rappels de versement (${count.non_lus} non lu${count.non_lus > 1 ? "s" : ""})`}
           aria-expanded={open}
-          className="relative w-11 h-11 rounded-full bg-white border border-gray-300 shadow-md hover:bg-gray-50 flex items-center justify-center text-xl transition-colors"
+          className="relative w-11 h-11 rounded-full bg-white border-2 border-brand/30 shadow-md hover:bg-gray-50 flex items-center justify-center text-xl transition-colors"
         >
           🔔
           {count.non_lus > 0 && (
@@ -60,6 +76,9 @@ export default function RappelBell() {
                 className="text-xs text-blue-700 hover:underline disabled:text-gray-300 disabled:no-underline whitespace-nowrap"
               >
                 Tout marquer comme lu
+              </button>
+              <button onClick={() => setOpen(false)} aria-label="Fermer" className="w-7 h-7 rounded-full hover:bg-gray-200 text-gray-500 flex items-center justify-center">
+                ✕
               </button>
             </div>
 

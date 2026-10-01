@@ -1,3 +1,4 @@
+import { splitTTC } from "../shared/lib/tva";
 import { LegacyAccountClient, PaymentTranche } from "../types";
 
 export { generateNumCompte, generateCodeClient } from "../shared/lib/generators";
@@ -113,9 +114,8 @@ export function deriveApres(seed: ApresSeed, i: number, resilie: boolean): Legac
     invoie: resilie ? "Oui" : "Non",
     motifRes: resilie ? MOTIFS_RESILIATION[i % MOTIFS_RESILIATION.length] : "",
     dateResiliation: resilie ? "27/11/2024" : undefined,
-    // TVA is subtracted FROM the TTC total (not added on top of HT):
-    // HT = TTC − TVA, where TVA = TTC × taux.
-    montantHT: Math.round((seed.montantTTC - seed.montantTTC * (seed.tva / 100)) * 100) / 100,
+    // La TVA est incluse dans le TTC : HT = TTC − TTC × taux / (100 + taux)
+    montantHT: splitTTC(seed.montantTTC, seed.tva).ht,
     tva: seed.tva,
     montantTTC: seed.montantTTC,
     versements,

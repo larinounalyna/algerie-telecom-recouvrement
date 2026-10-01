@@ -12,24 +12,21 @@ export default function Field({
   label,
   mono,
   filled,
-  filledClass = "bg-amber-50 border-2 border-amber-400",
+  filledClass = "bg-amber-50 border border-amber-400",
   wrapperClassName,
   required,
   ...inputProps
 }: FieldProps) {
-  const base =
-    "w-full rounded-lg px-3 py-1.5 text-sm text-[#1C2235] focus:outline-none transition-colors placeholder:text-gray-400";
-  const style = filled
-    ? `${filledClass} ${base}`
-    : `bg-white border-2 border-gray-300 focus:border-amber-500 ${base}`;
+  const base = "w-full rounded-md px-3 py-1.5 text-sm text-[#1b2338] focus:outline-none transition-colors placeholder:text-gray-400";
+  const style = filled ? `${filledClass} ${base}` : `bg-white border border-border2 focus:border-brand focus:ring-2 focus:ring-brand/15 ${base}`;
 
   return (
     <div className={wrapperClassName}>
-      <label className="block text-[11px] text-gray-500 mb-0.5">
+      <label className="block text-[11.5px] font-medium text-muted mb-1">
         {label}
         {required && " *"}
       </label>
-      <input {...inputProps} className={`${style} ${mono ? "font-mono" : ""}`} />
+      <input {...inputProps} className={`${style} ${mono ? "font-mono text-[13px]" : ""}`} />
     </div>
   );
 }

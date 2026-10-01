@@ -54,6 +54,16 @@ _CHECKS: list[tuple[str, str, str]] = [
         """,
     ),
     (
+        "corporate_ar_client / corporate_ar_file / corporate_ar_counter tables",
+        "sql/009_schema_corporate_ar.sql",
+        """
+        SELECT 1 WHERE (
+            SELECT COUNT(*) FROM information_schema.tables
+            WHERE table_name IN ('corporate_ar_client', 'corporate_ar_file', 'corporate_ar_counter')
+        ) = 3
+        """,
+    ),
+    (
         "apres_gaia_regelement.statut",
         "sql/005_add_apres_gaia_regelement_statut.sql",
         """

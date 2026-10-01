@@ -140,17 +140,14 @@ export default function AvantGaiaForm({ onOpenDB, onViewHistory, onViewJuridique
       <div className="flex-1 min-h-0 grid grid-cols-2 gap-4">
         {/* Left: client info */}
         <Section title="Informations Client" accentClass="bg-amber-500" className="min-h-0">
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="Nom" value={form.nom} readOnly filled={f} />
-            <Field label="Prénom" value={form.prenom} readOnly filled={f} />
-          </div>
+          <Field label="Nom, Prénom / Raison sociale" value={[form.nom, form.prenom].filter(Boolean).join(" ")} readOnly filled={f} />
           <Field label="Adresse" value={form.adresse} readOnly filled={f} />
           <div className="grid grid-cols-2 gap-2">
-            <Field label="Wilaya" value={form.wilaya} readOnly filled={f} />
+            <Field label="Wilaya" value="Alger" readOnly filled={f} />
             <Field label="Commune" value={form.commune} readOnly filled={f} />
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <Field label="Téléphone" value={form.telephone} readOnly filled={f} mono />
+            <Field label="N° Téléphone (= N° Client)" value={form.telephone} readOnly filled={f} mono />
             <Field label="Type de service" value={form.typeService} readOnly filled={f} />
           </div>
           <div className="grid grid-cols-3 gap-2">

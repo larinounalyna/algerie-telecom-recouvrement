@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { AccentTheme, ApresGaiaMedRow, DebtorView } from "../../types";
 import { fmtDate } from "../../shared/lib/format";
-import { buildMedDocument, MedDocType, DocLang } from "./medDocuments";
+import { MedDocType, DocLang } from "./medDocuments";
+import MedSheet from "./MedSheet";
+import ConfirmDialog from "../../shared/ui/ConfirmDialog";
 
 interface Props {
   client: DebtorView;
@@ -17,12 +19,10 @@ interface Props {
 
 const TITLES: Record<MedDocType, string> = {
   invitation: "Invitation de paiement",
-  med_lettre: "Mise en demeure par lettre",
+  med_lettre: "Mise en demeure par lettre (convocation)",
   engagement: "Engagement du client",
-  attestation: "Attestation de règlement",
+  attestation: "Attestation de mise à jour",
 };
-
-const ARABIC_FONT: React.CSSProperties = { fontFamily: "'Traditional Arabic', 'Arial', 'Noto Naskh Arabic', sans-serif" };
 
 export default function MedDocumentModal({ client, med, type, accent, alreadySentDate, busy, onEnvoyer, onClose }: Props) {
   useEffect(() => {
@@ -36,8 +36,8 @@ export default function MedDocumentModal({ client, med, type, accent, alreadySen
   const [lang, setLang] = useState<DocLang>("fr");
   const [recorded, setRecorded] = useState(!!alreadySentDate);
   const [error, setError] = useState<string | null>(null);
+  const [ask, setAsk] = useState<null | "record" | "print">(null);
 
-  const doc = buildMedDocument(type, lang, client, med);
   // The attestation is a plain printout: it is not a step of the MED workflow, so there is nothing to record.
   const recordable = type !== "attestation";
 
@@ -56,7 +56,7 @@ export default function MedDocumentModal({ client, med, type, accent, alreadySen
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="bg-surface border border-border rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col"
+        className="bg-surface border border-border rounded-lg shadow-2xl w-full max-w-4xl max-h-[94vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Controls */}
@@ -80,7 +80,7 @@ export default function MedDocumentModal({ client, med, type, accent, alreadySen
               <span className="text-xs text-green-700">✓ Enregistré{alreadySentDate ? ` le ${fmtDate(alreadySentDate)}` : ""}</span>
             ) : (
               <button
-                onClick={record}
+                onClick={() => setAsk("record")}
                 disabled={busy}
                 className="px-3 py-1.5 text-sm bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors disabled:opacity-60"
               >
@@ -88,10 +88,7 @@ export default function MedDocumentModal({ client, med, type, accent, alreadySen
               </button>
             )}
             <button
-              onClick={async () => {
-                const ok = !recordable || (await record());
-                if (ok) window.print();
-              }}
+              onClick={() => (recordable && !recorded ? setAsk("print") : window.print())}
               disabled={busy}
               className={`px-3 py-1.5 text-sm text-white rounded transition-opacity hover:opacity-80 disabled:opacity-60 ${accent.bg}`}
             >
@@ -106,69 +103,35 @@ export default function MedDocumentModal({ client, med, type, accent, alreadySen
           </div>
         </div>
 
+        {ask && (
+          <ConfirmDialog
+            title={ask === "print" ? "Imprimer et enregistrer cette étape ?" : "Enregistrer cette étape sans imprimer ?"}
+            confirmLabel={ask === "print" ? "Imprimer et enregistrer" : "Enregistrer"}
+            busy={busy}
+            onCancel={() => setAsk(null)}
+            onConfirm={async () => {
+              const ok = await record();
+              setAsk(null);
+              if (ok && ask === "print") setTimeout(() => window.print(), 50);
+            }}
+          >
+            <p>
+              <b>{TITLES[type]}</b> — compte n° <b>{client.id}</b>.
+            </p>
+            <p>L'étape sera marquée comme faite dans le dossier avec la date du jour.</p>
+          </ConfirmDialog>
+        )}
+
         {error && <p className="no-print px-4 py-2 text-xs bg-red-50 text-red-700 border-b border-red-200">{error}</p>}
 
         {/* Scrollable document */}
-        <div className="overflow-auto flex-1 bg-surface2">
-          <div
-            className="print-area bg-white text-black p-10 m-4 rounded shadow-sm border border-gray-100 text-sm leading-relaxed"
-            dir={doc.dir}
-            style={doc.lang === "ar" ? ARABIC_FONT : undefined}
-          >
-            {/* Header */}
-            <div className="text-center mb-5 pb-4 border-b-2 border-black">
-              {doc.entete.map((line, i) => (
-                <p key={i} className={i === 0 ? "text-xl font-extrabold tracking-tight" : "text-[10px] text-gray-600"} style={i === 0 ? { fontFamily: "Georgia, serif" } : undefined}>
-                  {line}
-                </p>
-              ))}
-              <p className="text-sm font-medium text-gray-800 mt-2">{doc.direction}</p>
-            </div>
-
-            {/* Reference block */}
-            <div className={`grid grid-cols-2 gap-x-6 gap-y-1 text-xs mb-6 ${doc.dir === "rtl" ? "text-right" : ""}`}>
-              {doc.reference.map((f, i) => (
-                <div key={i} className="flex gap-1">
-                  <span className="font-semibold whitespace-nowrap">{f.label} :</span>
-                  <span className="font-mono">{f.value}</span>
-                </div>
-              ))}
-            </div>
-
-            <p className="mb-2 font-semibold">{doc.objet}</p>
-
-            <div className="text-center mb-6">
-              <div className="inline-block px-8 py-2 border-2 border-black font-bold uppercase tracking-widest bg-gray-50" style={{ fontFamily: doc.dir === "ltr" ? "Georgia, serif" : undefined }}>
-                {doc.titre}
-              </div>
-            </div>
-
-            {doc.paragraphes.map((p, i) => (
-              <p key={i} className="mb-3">
-                {p}
-              </p>
-            ))}
-
-            {doc.aRemplir && (
-              <div className="my-4 space-y-2 pl-4 border-l-2 border-gray-300">
-                {doc.aRemplir.map((l, i) => (
-                  <p key={i} className="font-mono text-xs">
-                    {l}
-                  </p>
-                ))}
-              </div>
-            )}
-
-            <div className={`grid grid-cols-2 gap-8 text-[9px] uppercase text-gray-500 tracking-wider mt-10 ${doc.dir === "rtl" ? "text-right" : ""}`}>
-              <div>
-                <div className="border-t border-gray-400 pt-1 mt-10">{doc.signatureGauche}</div>
-              </div>
-              {doc.signatureDroite && (
-                <div className={doc.dir === "rtl" ? "text-left" : "text-right"}>
-                  <div className="border-t border-gray-400 pt-1 mt-10">{doc.signatureDroite}</div>
-                </div>
-              )}
-            </div>
+        <div className="overflow-auto flex-1 bg-[#d5dae5] p-5">
+          <p className="no-print text-center text-xs text-brand mb-3">
+            ✎ Document modifiable : cliquez dans le texte ou sur un champ pointillé pour écrire, puis imprimez.
+            {" "}Changer de langue réinitialise vos modifications.
+          </p>
+          <div className="print-area shadow-lg" contentEditable suppressContentEditableWarning spellCheck={false}>
+            <MedSheet type={type} lang={lang} client={client} med={med} />
           </div>
         </div>
       </div>

@@ -1,31 +1,23 @@
 import { ReactNode } from "react";
 import BackLink from "./BackLink";
+import BrandHeader from "./BrandHeader";
 
 interface PageHeaderBarProps {
   title: string;
   onBack: () => void;
-  /** Tailwind background class for the bar, e.g. "bg-red-600". */
-  bgClass?: string;
-  /** Tailwind color class for the divider, e.g. "bg-red-400". */
-  dividerClass?: string;
   right?: ReactNode;
 }
 
-/** Full-width colored header bar with a back link, a title, and optional
- * right-aligned content (used by SystemPage). */
-export default function PageHeaderBar({
-  title,
-  onBack,
-  bgClass = "bg-red-600",
-  dividerClass = "bg-red-400",
-  right,
-}: PageHeaderBarProps) {
+/** Brand header: back link, logo + institution (FR/AR), page title. */
+export default function PageHeaderBar({ title, onBack, right }: PageHeaderBarProps) {
   return (
-    <div className={`px-6 py-4 flex items-center gap-5 flex-shrink-0 ${bgClass}`}>
+    <header className="flex-shrink-0 bg-brand border-b-4 border-leaf pl-6 pr-20 py-2.5 flex items-center gap-5 no-print">
       <BackLink onClick={onBack} tone="light" />
-      <div className={`w-px h-7 ${dividerClass}`} />
-      <h1 className="text-2xl text-white flex-1">{title}</h1>
+      <div className="w-px h-9 bg-white/25" />
+      <BrandHeader tone="dark" compact />
+      <div className="flex-1" />
+      <h1 className="text-[15px] font-semibold text-white tracking-wide">{title}</h1>
       {right}
-    </div>
+    </header>
   );
 }

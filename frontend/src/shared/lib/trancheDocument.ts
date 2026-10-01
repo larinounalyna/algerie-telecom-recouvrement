@@ -57,6 +57,7 @@ export function buildTrancheDocument(
     datePaiement: tranche.date,
     agent: tranche.agent || "",
     numClient: extra?.numClient,
+    rang: idx + 1,
     dateResiliation: extra?.dateResiliation,
     montantHT: extra?.montantHT,
     tvaRate: extra?.tvaRate,

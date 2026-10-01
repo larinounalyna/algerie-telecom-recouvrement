@@ -32,7 +32,7 @@ export default function SystemPage({ system, onBack, onSwitchSystem }: Props) {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Header bar */}
-      <PageHeaderBar title={labelFor(system).toUpperCase()} onBack={onBack} />
+      <PageHeaderBar title={`Clients particuliers — ${labelFor(system)}`} onBack={onBack} />
 
       {/* Form — non-scrollable single screen */}
       <div className="flex-1 min-h-0 overflow-hidden bg-bg">

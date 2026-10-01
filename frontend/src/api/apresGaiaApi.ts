@@ -39,8 +39,16 @@ export const apresGaiaApi = {
   refuserReglement: (ref: number) =>
     request<ApresGaiaReglementRow>(`/api/apres-gaia/reglements/${ref}/refuser`, { method: "POST" }),
 
-  /** Supprime UN versement (204). Irréversible — s'il était validé, le solde dû se recalcule sans lui. */
-  deleteReglement: (ref: number) => request<void>(`/api/apres-gaia/reglements/${ref}`, { method: "DELETE" }),
+  /**
+   * Supprime UN versement (204). Irréversible — s'il était validé, le solde dû se recalcule sans lui.
+   * Le serveur exige le mot de passe de son fichier .env (403 s'il est faux, 429 après trop d'essais) ;
+   * il est encodé car un en-tête HTTP ne peut pas porter d'accents / de caractères arabes tels quels.
+   */
+  deleteReglement: (ref: number, password: string) =>
+    request<void>(`/api/apres-gaia/reglements/${ref}`, {
+      method: "DELETE",
+      headers: { "X-Delete-Password": encodeURIComponent(password) },
+    }),
 
   /** Inserts one or many rows into `apres_gaia` (CSV import). */
   createRows: (rows: ApresGaiaInsert[]) =>
@@ -49,6 +57,10 @@ export const apresGaiaApi = {
   /* -------------------------------------------------------------- */
   /* apres_gaia_med — mises en demeure + état juridique, always by n */
   /* -------------------------------------------------------------- */
+
+  /** The whole `apres_gaia_med` table (one row per client that has a follow-up), paged under the hood. */
+  listAllMed: () =>
+    fetchAllPages((skip, limit) => request<ApresGaiaMedRow[]>("/api/apres-gaia/med", { query: { skip, limit } })),
 
   /** Statut MED du client n (valeurs par défaut si rien n'a jamais été enregistré). */
   getMed: (n: number | string) => request<ApresGaiaMedRow>(`/api/apres-gaia/${n}/med`),

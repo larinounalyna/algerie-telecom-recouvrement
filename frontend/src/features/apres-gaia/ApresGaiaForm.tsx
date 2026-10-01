@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { PaymentTranche } from "../../types";
-import { fmtDA, fmtDAOrBlank, fmtDate } from "../../shared/lib/format";
+import { fmtDA, fmtDAOrBlank, fmtDate, todayISO } from "../../shared/lib/format";
 import { validateTranche, trancheBounds, MIN_TRANCHE } from "../../shared/lib/payments";
 import { buildTrancheDocument } from "../../shared/lib/trancheDocument";
 import { blueTheme } from "../../shared/theme/theme";
@@ -15,6 +15,7 @@ import {
   toApresFormValues,
 } from "../../services";
 import FactureModal, { FactureData } from "../facture/FactureModal";
+import { TVA_RATE } from "../../shared/lib/tva";
 import Field from "../../shared/ui/Field";
 import Section from "../../shared/ui/Section";
 import TrancheStatusBadge from "../../shared/ui/TrancheStatusBadge";
@@ -39,6 +40,7 @@ export default function ApresGaiaForm({ onOpenDB, onViewHistory, onViewJuridique
   const [doc, setDoc] = useState<FactureData | null>(null);
   const [montant, setMontant] = useState("");
   const [lieu, setLieu] = useState("");
+  const [dateVersement, setDateVersement] = useState(todayISO());
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -75,7 +77,7 @@ export default function ApresGaiaForm({ onOpenDB, onViewHistory, onViewJuridique
       return;
     }
     setBusy(true);
-    const failure = await encaisser(amount, lieu);
+    const failure = await encaisser(amount, lieu, dateVersement || undefined);
     setBusy(false);
     if (failure) {
       setError(failure);
@@ -84,6 +86,7 @@ export default function ApresGaiaForm({ onOpenDB, onViewHistory, onViewJuridique
     }
     setMontant("");
     setLieu("");
+    setDateVersement(todayISO());
     setError(null);
     setSuccess(true);
     setTimeout(() => setSuccess(false), 2500);
@@ -112,6 +115,7 @@ export default function ApresGaiaForm({ onOpenDB, onViewHistory, onViewJuridique
     clear();
     setMontant("");
     setLieu("");
+    setDateVersement(todayISO());
     setError(null);
   };
 
@@ -199,12 +203,11 @@ export default function ApresGaiaForm({ onOpenDB, onViewHistory, onViewJuridique
             <Field label="Statut" value={values.statut} readOnly filled={f} filledClass={accent.filled} />
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <Field label="Nom" value={values.nom} readOnly filled={f} filledClass={accent.filled} />
-            <Field label="Prénom" value={values.prenom} readOnly filled={f} filledClass={accent.filled} />
+            <Field label="Nom, Prénom / Raison sociale" value={[values.nom, values.prenom].filter(Boolean).join(" ")} readOnly filled={f} filledClass={accent.filled} wrapperClassName="col-span-2" />
           </div>
           <Field label="Adresse" value={values.adresse} readOnly filled={f} filledClass={accent.filled} />
           <div className="grid grid-cols-3 gap-2">
-            <Field label="Wilaya" value={values.wilaya} readOnly filled={f} filledClass={accent.filled} />
+            <Field label="Wilaya" value="Alger" readOnly filled={f} filledClass={accent.filled} />
             <Field label="Commune" value={values.commune} readOnly filled={f} filledClass={accent.filled} />
             <Field label="Code postal" value={values.codePostal} readOnly filled={f} filledClass={accent.filled} mono />
           </div>
@@ -231,7 +234,7 @@ export default function ApresGaiaForm({ onOpenDB, onViewHistory, onViewJuridique
                   <div className={`font-mono font-semibold min-h-[1lh] ${accent.cardValue}`}>{fmtDAOrBlank(facturation.montant_ttc)}</div>
                 </div>
                 <div className="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5">
-                  <div className="text-[10px] uppercase text-gray-400">− TVA</div>
+                  <div className="text-[10px] uppercase text-gray-400">− TVA {TVA_RATE} %</div>
                   <div className="font-mono min-h-[1lh]">{fmtDAOrBlank(facturation.tva)}</div>
                 </div>
                 <div className="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5">
@@ -303,6 +306,15 @@ export default function ApresGaiaForm({ onOpenDB, onViewHistory, onViewJuridique
                           setError(null);
                         }}
                         className={`flex-1 min-w-[8rem] bg-white border-2 border-gray-300 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none ${accent.focusBorder} transition-colors`}
+                      />
+                      <input
+                        type="date"
+                        title="Date du versement"
+                        aria-label="Date du versement"
+                        value={dateVersement}
+                        max={todayISO()}
+                        onChange={(e) => setDateVersement(e.target.value)}
+                        className={`w-40 bg-white border-2 border-gray-300 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none ${accent.focusBorder} transition-colors`}
                       />
                       <input
                         type="text"

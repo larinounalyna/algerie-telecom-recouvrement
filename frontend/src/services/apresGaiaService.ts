@@ -66,7 +66,7 @@ export function toApresFormValues(p: ApresGaiaProfile): ApresGaiaFormValues {
     nom: txt(i.intitule), // apres_gaia has a single name column: intitule
     prenom: "", // no column
     adresse: txt(i.adresse),
-    wilaya: "", // no column
+    wilaya: "Alger", // always Alger
     commune: txt(i.commune),
     codePostal: txt(i.code_postal),
     telephoneFixe: txt(i.n_appel), // N° d'appel = the line's phone number
@@ -138,8 +138,9 @@ export function apresProfileToDebtor(p: ApresGaiaProfile): DebtorView {
     prenom: "",
     adresse: txt(i.adresse),
     commune: txt(i.commune),
-    wilaya: "",
+    wilaya: "Alger",
     telephone: txt(i.n_appel),
+    numClient: txt(i.n_client),
     typeService: "",
     montantTotal: p.details_facturation.montant_ttc ?? 0,
     solde: p.solde_du,
@@ -170,7 +171,7 @@ export const recordReglement = (n: number | string, r: NewReglement) =>
 
 export const validateReglement = (ref: number | string) => apresGaiaApi.validerReglement(Number(ref));
 export const refuseReglement = (ref: number | string) => apresGaiaApi.refuserReglement(Number(ref));
-export const deleteReglement = (ref: number | string) => apresGaiaApi.deleteReglement(Number(ref));
+export const deleteReglement = (ref: number | string, password: string) => apresGaiaApi.deleteReglement(Number(ref), password);
 
 /** Sum of the règlements still awaiting validation (they don't reduce `solde_du` yet). */
 export const pendingTotal = (historique: PaymentTranche[]) =>
@@ -228,13 +229,26 @@ export const marquerTousRappelsLus = () => apresGaiaApi.marquerTousRappelsLus();
 export interface ApresGaiaDatabase {
   rows: ApresGaiaRow[];
   reglements: ApresGaiaReglementRow[];
+  /** apres_gaia_med: invitation / MED lettre / engagement / huissier / état juridique, per client. */
+  meds: ApresGaiaMedRow[];
+  /** Set when the MED table could not be read (e.g. migration 006 not applied): the rest still works. */
+  medError: string | null;
   /** n → solde dû (computed, see services/accounting.ts). */
   soldes: Map<number, number>;
 }
 
 export async function loadApresGaiaDatabase(): Promise<ApresGaiaDatabase> {
-  const [rows, reglements] = await Promise.all([apresGaiaApi.listDatabase(), apresGaiaApi.listAllReglements()]);
-  return { rows, reglements, soldes: computeApresSoldes(rows, reglements) };
+  let medError: string | null = null;
+  const [rows, reglements, meds] = await Promise.all([
+    apresGaiaApi.listDatabase(),
+    apresGaiaApi.listAllReglements(),
+    // The MED details are optional for this screen: a failure must not hide the whole database.
+    apresGaiaApi.listAllMed().catch((e) => {
+      medError = e instanceof Error ? e.message : "Erreur inattendue.";
+      return [] as ApresGaiaMedRow[];
+    }),
+  ]);
+  return { rows, reglements, meds, medError, soldes: computeApresSoldes(rows, reglements) };
 }
 
 /** Inserts rows in `apres_gaia` (in chunks, a CSV can hold thousands of lines); returns how many were created. */

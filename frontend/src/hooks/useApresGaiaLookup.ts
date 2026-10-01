@@ -79,9 +79,9 @@ export function useApresGaiaLookup() {
   );
 
   const encaisser = useCallback(
-    (montant: number, lieu?: string) => {
+    (montant: number, lieu?: string, date?: string) => {
       if (current === null) return Promise.resolve("Aucun compte sélectionné.");
-      return mutate(() => recordReglement(current, { montant, lieu }));
+      return mutate(() => recordReglement(current, { montant, lieu, date: date || undefined }));
     },
     [current, mutate],
   );

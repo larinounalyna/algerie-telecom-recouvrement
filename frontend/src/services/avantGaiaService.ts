@@ -63,9 +63,9 @@ export function toAvantFormValues(p: AvantGaiaProfile): AvantGaiaFormValues {
     nom: txt(i.intitule), // avant_gaia has a single name column: intitule
     prenom: "", // no column
     adresse: [i.adresse_01, i.adresse_02].filter(Boolean).join(", "),
-    wilaya: "", // no column
+    wilaya: "Alger", // always Alger
     commune: "", // no column
-    telephone: "", // no column
+    telephone: txt(i.n_abonne), // N° de téléphone = N° abonné = N° client
     typeService: "", // no column
     groupement: txt(i.actel), // closest existing column
     codePayeur: txt(i.code_payeur),
@@ -116,8 +116,8 @@ export function avantProfileToDebtor(p: AvantGaiaProfile): DebtorView {
     prenom: "",
     adresse: [i.adresse_01, i.adresse_02].filter(Boolean).join(", "),
     commune: "",
-    wilaya: "",
-    telephone: "",
+    wilaya: "Alger",
+    telephone: txt(i.n_abonne),
     typeService: "",
     montantTotal: round2(p.solde_du + verse), // total billed = still due + already paid
     solde: p.solde_du,

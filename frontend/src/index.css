@@ -1,19 +1,30 @@
 @import 'tailwindcss';
 
 @theme {
-  --font-sans: Georgia, 'Times New Roman', 'DejaVu Serif', serif;
-  --font-mono: Georgia, 'Times New Roman', 'DejaVu Serif', serif;
-  --color-bg: #F8F9FB;
-  --color-surface: #FFFFFF;
-  --color-surface2: #EDF0F7;
-  --color-border: #D1D8E8;
-  --color-border2: #B4BDD0;
-  --color-primary: #2563EB;
-  --color-muted: #6B7A99;
-  --color-dim: #9AA5BC;
-  --color-success: #16A34A;
-  --color-warning: #D97706;
-  --color-danger: #DC2626;
+  --font-sans: 'IBM Plex Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'Consolas', monospace;
+  --font-doc: 'Times New Roman', Times, 'Liberation Serif', serif;
+  --font-arabic: 'Noto Naskh Arabic', 'Traditional Arabic', 'Arial', sans-serif;
+
+  /* Algérie Télécom identity (sampled from the logo) */
+  --color-brand: #233e83;
+  --color-brand-dark: #182c5e;
+  --color-brand-soft: #e9edf7;
+  --color-leaf: #367f3e;
+  --color-leaf-dark: #28632f;
+  --color-leaf-soft: #e8f2e9;
+
+  --color-bg: #f3f5f9;
+  --color-surface: #ffffff;
+  --color-surface2: #e9edf4;
+  --color-border: #d3d9e6;
+  --color-border2: #b4bdd0;
+  --color-primary: #233e83;
+  --color-muted: #5d6b89;
+  --color-dim: #94a0b8;
+  --color-success: #2e7d3a;
+  --color-warning: #c2710c;
+  --color-danger: #c62828;
 }
 
 html,
@@ -23,25 +34,73 @@ body,
 }
 
 body {
-  background-color: #F8F9FB;
-  color: #1C2235;
-  font-family: Georgia, 'Times New Roman', 'DejaVu Serif', serif;
-  font-size: 17px;
+  background-color: var(--color-bg);
+  color: #1b2338;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
 }
 
 * {
   box-sizing: border-box;
 }
 
-::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #D1D8E8; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #B4BDD0; }
+::-webkit-scrollbar-thumb { background: #c5cde0; border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: #a3aecb; }
 
-input:focus, button:focus-visible, select:focus {
-  outline: 3px solid #2563EB;
+input:focus-visible, button:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--color-brand);
   outline-offset: 2px;
 }
+input:focus { outline: none; }
+
+/* ------------------------------------------------------------------ */
+/* Official documents (facture, courriers, engagement, attestation)    */
+/* Reproduces the paper originals: Times, black on white, A4.          */
+/* ------------------------------------------------------------------ */
+.doc-sheet {
+  font-family: var(--font-doc);
+  color: #000;
+  background: #fff;
+  width: 100%;
+  max-width: 794px; /* A4 at 96dpi */
+  min-height: 1000px;
+  margin: 0 auto;
+  padding: 44px 56px 36px;
+  display: flex;
+  flex-direction: column;
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+.doc-sheet[dir='rtl'] { font-family: var(--font-arabic); font-size: 16px; line-height: 1.9; }
+.doc-sheet .doc-ar { font-family: var(--font-arabic); direction: rtl; }
+.doc-rule { border: 0; border-top: 1.5px solid #8a8f9c; margin: 10px 0; }
+.doc-underline { text-decoration: underline; text-underline-offset: 3px; }
+.doc-title-engagement {
+  font-size: 28px; font-weight: 700; text-decoration: underline; text-underline-offset: 4px;
+  text-shadow: 1px 1px 2px rgba(0,0,0,.35); text-align: center; margin: 14px 0 12px;
+}
+.doc-fold {
+  position: relative; border: 1.5px solid #222; padding: 22px 26px 34px;
+  background: linear-gradient(#fff, #fff);
+}
+.doc-fold::after {
+  content: ''; position: absolute; right: -1.5px; bottom: -1.5px; width: 34px; height: 34px;
+  background: linear-gradient(135deg, #fff 50%, #d9dbe0 50%);
+  border-top: 1.5px solid #222; border-left: 1.5px solid #222;
+  border-top-left-radius: 6px;
+}
+.doc-blank { display: inline-block; min-width: 130px; padding: 0 4px; border-bottom: 1px dotted #000; height: 1em; vertical-align: baseline; }
+
+.print-area[contenteditable] { outline: none; cursor: text; }
+@media screen {
+  .print-area[contenteditable] .doc-blank { background: #eef3ff; border-bottom-color: #233e83; }
+  .print-area[contenteditable] .doc-blank:hover { background: #dfe8ff; }
+}
+
+@page { size: A4; margin: 0; }
 
 @media print {
   body * { visibility: hidden; }
@@ -50,10 +109,14 @@ input:focus, button:focus-visible, select:focus {
     position: fixed;
     inset: 0;
     background: white !important;
-    padding: 12mm;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
     color: black !important;
     overflow: visible;
   }
+  .print-area .doc-sheet { max-width: none; min-height: 100vh; padding: 14mm 16mm 10mm; }
   .no-print { display: none !important; }
   .print-only { display: block !important; }
 }

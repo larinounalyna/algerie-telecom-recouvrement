@@ -1,0 +1,48 @@
+# =========================
+# Backend
+# =========================
+
+backend/__pycache__/
+backend/**/*.pyc
+backend/.venv/
+backend/venv/
+backend/dbms/
+backend/.env
+
+# Python
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Logs
+backend/*.log
+backend/logs/
+
+
+# =========================
+# Frontend
+# =========================
+
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+
+# Logs
+frontend/*.log
+frontend/logs/
+
+
+# =========================
+# General
+# =========================
+
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

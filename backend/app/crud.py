@@ -7,6 +7,7 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from . import models, schemas
+from .config import get_settings
 
 
 # --------------------------------------------------------------------- #
@@ -567,6 +568,15 @@ def clear_cas_particulier(
 #  Solde helpers — single source of truth (profile + rappels)           #
 # --------------------------------------------------------------------- #
 
+def split_ttc(montant_ttc: float, rate: float | None = None) -> tuple[float, float]:
+    """(TVA, HT) d'un montant TTC. La TVA est INCLUSE dans le TTC :
+    TVA = TTC × taux / (100 + taux), HT = TTC − TVA. Taux par défaut : TVA_RATE (19 %)."""
+
+    taux = get_settings().TVA_RATE if rate is None else rate
+    tva = round(montant_ttc * taux / (100 + taux), 2)
+    return tva, round(montant_ttc - tva, 2)
+
+
 def compute_montant_ttc(client: models.ApresGaia) -> float:
     total = sum(
         (v for v in (client.abonnement, client.dus_ant, client.montant_compteur) if v is not None),
@@ -687,15 +697,7 @@ def build_apres_gaia_profile(
 
     montant_ttc = compute_montant_ttc(client)
 
-    tva = round(
-        montant_ttc * 19 / 119,
-        2
-    )
-
-    montant_ht = round(
-        montant_ttc - tva,
-        2
-    )
+    tva, montant_ht = split_ttc(montant_ttc)
 
     reglements = get_reglements_for_client(
         db,

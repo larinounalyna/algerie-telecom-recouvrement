@@ -120,6 +120,8 @@ export interface DebtorView {
   wilaya: string;
   telephone: string;
   typeService: string;
+  /** N° client (apres_gaia.n_client) when it differs from the account id. */
+  numClient?: string;
   montantTotal: number;
   solde: number;
   historique: PaymentTranche[];
@@ -255,6 +257,8 @@ export interface FactureData {
   agent: string;
   // Facturation block (N° Client / N° Abonnement / Date de résiliation / HT / TVA / TTC)
   numClient?: string;
+  /** Rank of this versement in the client's history (1 = « 1er VP »). */
+  rang?: number;
   dateResiliation?: string;
   montantHT?: number;
   tvaRate?: number;

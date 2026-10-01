@@ -57,3 +57,39 @@ CREATE TABLE IF NOT EXISTS corporate_ar_counter (
 );
 
 INSERT INTO corporate_ar_counter (id, last_number) VALUES (1, 0) ON CONFLICT (id) DO NOTHING;
+
+-- updated_at suit automatiquement toute modification d'un client
+-- (l'API le fait aussi elle-même ; le trigger couvre les UPDATE faits à la main dans psql).
+CREATE OR REPLACE FUNCTION update_corporate_ar_client_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_corporate_ar_client_updated_at ON corporate_ar_client;
+
+CREATE TRIGGER trg_corporate_ar_client_updated_at
+BEFORE UPDATE ON corporate_ar_client
+FOR EACH ROW
+EXECUTE FUNCTION update_corporate_ar_client_timestamp();
+
+-- Génère le code suivant (CAR-000001, CAR-000002…) pour une insertion faite à la main.
+-- L'API a sa propre allocation (qui reste au-dessus de tout code déjà présent) : les deux
+-- utilisent le même compteur, donc aucun code n'est jamais donné deux fois.
+CREATE OR REPLACE FUNCTION generate_corporate_ar_code()
+RETURNS VARCHAR(50)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    next_number INTEGER;
+BEGIN
+    UPDATE corporate_ar_counter
+    SET last_number = last_number + 1
+    WHERE id = 1
+    RETURNING last_number INTO next_number;
+
+    RETURN 'CAR-' || LPAD(next_number::TEXT, 6, '0');
+END;
+$$;

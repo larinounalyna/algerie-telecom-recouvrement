@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AccentTheme, DebtorView, PaymentTranche } from "../../types";
-import { fmtDA, fmtDate } from "../../shared/lib/format";
+import { fmtDA, fmtDate, todayISO } from "../../shared/lib/format";
 import { validateTranche, trancheBounds, MIN_TRANCHE } from "../../shared/lib/payments";
 import { pendingTotal } from "../../services";
 import TrancheStatusBadge from "../../shared/ui/TrancheStatusBadge";
@@ -20,11 +20,11 @@ interface Props {
   dbLabel?: string;
   numPrefix?: "HG" | "GA" | "EN";
   /** Absent when the database is read-only (Avant Gaïa). Resolves to null or an error message. */
-  onRecordPayment?: (montant: number, note?: string) => Promise<string | null>;
+  onRecordPayment?: (montant: number, note?: string, date?: string) => Promise<string | null>;
   onValidateTranche?: (trancheId: string) => Promise<string | null>;
   onRefuseTranche?: (trancheId: string) => Promise<string | null>;
   /** Supprime définitivement un versement (Après Gaïa). Une confirmation est demandée avant l'appel. */
-  onDeleteTranche?: (trancheId: string) => Promise<string | null>;
+  onDeleteTranche?: (trancheId: string, password: string) => Promise<string | null>;
   onClose: () => void;
   initialTab?: "finance" | "juridique";
 }
@@ -43,6 +43,7 @@ export default function ClientDetailModal({
 }: Props) {
   const [montant, setMontant] = useState("");
   const [agent, setAgent] = useState("");
+  const [dateVersement, setDateVersement] = useState(todayISO());
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -52,6 +53,9 @@ export default function ClientDetailModal({
   const [tab, setTab] = useState<"finance" | "juridique">(initialTab);
   const [toDelete, setToDelete] = useState<PaymentTranche | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [showAttestation, setShowAttestation] = useState(false);
   const { getJuridique } = useAppData();
   const isApres = client.kind === "apres";
@@ -74,7 +78,7 @@ export default function ClientDetailModal({
       return;
     }
     setBusy(true);
-    const failure = await onRecordPayment(amount, agent.trim() || undefined);
+    const failure = await onRecordPayment(amount, agent.trim() || undefined, dateVersement || undefined);
     setBusy(false);
     if (failure) {
       setError(failure);
@@ -83,22 +87,54 @@ export default function ClientDetailModal({
     }
     setMontant("");
     setAgent("");
+    setDateVersement(todayISO());
     setError(null);
     setSuccess(true);
     setTimeout(() => setSuccess(false), 2500);
   };
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !doc && !showMED && !showAttestation && !toDelete && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose, doc, showMED, showAttestation, toDelete]);
+
   const act = async (fn: (id: string) => Promise<string | null>, id: string) => {
     setActionError(await fn(id));
   };
 
-  const confirmDelete = async () => {
-    if (!toDelete || !onDeleteTranche) return;
-    setDeleting(true);
-    const failure = await onDeleteTranche(toDelete.id);
-    setDeleting(false);
-    setActionError(failure);
+  const openDelete = (t: PaymentTranche) => {
+    setDeletePassword("");
+    setShowPassword(false);
+    setDeleteError(null);
+    setToDelete(t);
+  };
+
+  const closeDelete = () => {
     setToDelete(null);
+    setDeletePassword("");
+    setShowPassword(false);
+    setDeleteError(null);
+  };
+
+  // The dialog stays open on any failure (wrong password, locked out, server error) so the
+  // agent can retry; it only closes once the versement is really deleted.
+  const confirmDelete = async () => {
+    if (!toDelete || !onDeleteTranche || deleting) return;
+    if (!deletePassword) {
+      setDeleteError("Saisissez le mot de passe pour supprimer ce versement.");
+      return;
+    }
+    setDeleting(true);
+    const failure = await onDeleteTranche(toDelete.id, deletePassword);
+    setDeleting(false);
+    if (failure) {
+      setDeleteError(failure);
+      setDeletePassword("");
+      return;
+    }
+    setActionError(null);
+    closeDelete();
   };
 
   const viewTranche = (t: PaymentTranche) => {
@@ -308,6 +344,16 @@ export default function ClientDetailModal({
                     }}
                     className="flex-1 min-w-[10rem] bg-white border-2 border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-blue-500 transition-colors"
                   />
+                  <label className="flex items-center gap-2 text-xs text-muted">
+                    Date du versement
+                    <input
+                      type="date"
+                      value={dateVersement}
+                      max={todayISO()}
+                      onChange={(e) => setDateVersement(e.target.value)}
+                      className="bg-white border-2 border-gray-300 rounded-lg px-2.5 py-2 text-sm font-mono focus:outline-none focus:border-blue-500 transition-colors"
+                    />
+                  </label>
                   <input
                     type="text"
                     placeholder={noteLabel}
@@ -377,7 +423,7 @@ export default function ClientDetailModal({
                               )}
                               {onDeleteTranche && (
                                 <button
-                                  onClick={() => setToDelete(t)}
+                                  onClick={() => openDelete(t)}
                                   title="Supprimer ce versement"
                                   aria-label={`Supprimer le versement du ${fmtDate(t.date)}`}
                                   className="w-7 h-7 rounded-full border border-red-300 text-red-600 hover:bg-red-50 flex items-center justify-center transition-colors"
@@ -478,8 +524,10 @@ export default function ClientDetailModal({
           confirmLabel="Oui, supprimer"
           tone="danger"
           busy={deleting}
+          confirmDisabled={!deletePassword}
+          autoFocusConfirm={false}
           onConfirm={confirmDelete}
-          onCancel={() => setToDelete(null)}
+          onCancel={closeDelete}
         >
           <div className="rounded-lg bg-gray-50 border border-gray-200 px-3 py-2 font-mono text-[13px] text-[#1C2235]">
             {fmtDate(toDelete.date)} — {fmtDA(toDelete.montant)}
@@ -494,6 +542,56 @@ export default function ClientDetailModal({
             <p>Ce versement n'est pas encore validé : le montant dû ne change pas.</p>
           )}
           <p>Cette action est <b>irréversible</b>.</p>
+          <label className="block pt-1">
+            <span className="block text-xs font-medium text-gray-700 mb-1">Mot de passe de suppression</span>
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                autoFocus
+                autoComplete="off"
+                value={deletePassword}
+                disabled={deleting}
+                onChange={(e) => {
+                  setDeletePassword(e.target.value);
+                  setDeleteError(null);
+                }}
+                onKeyDown={(e) => e.key === "Enter" && void confirmDelete()}
+                aria-invalid={deleteError ? true : undefined}
+                aria-describedby={deleteError ? "delete-password-error" : undefined}
+                className={`w-full rounded-lg border-2 pl-3 pr-11 py-2 text-sm text-gray-900 focus:outline-none ${
+                  deleteError ? "border-red-400 bg-red-50" : "border-gray-300 focus:border-red-400"
+                }`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                disabled={deleting}
+                aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                aria-pressed={showPassword}
+                title={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                className="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-lg text-gray-500 hover:text-gray-800 disabled:opacity-50"
+              >
+                {showPassword ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                    <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+                    <path d="M1 1l22 22" />
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          </label>
+          {deleteError && (
+            <p id="delete-password-error" role="alert" className="text-sm text-red-700">
+              {deleteError}
+            </p>
+          )}
         </ConfirmDialog>
       )}
 

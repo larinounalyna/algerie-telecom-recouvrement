@@ -1,9 +1,26 @@
-import { ApresGaiaRow, AvantGaiaRow, DbKind, EntrepriseClient, StadeJuridique } from "../../types";
+import { ApresGaiaMedRow, ApresGaiaRow, AvantGaiaRow, DbKind, EntrepriseClient, StadeJuridique } from "../../types";
 import { StoredJuridique, lastMED } from "./juridique";
 
 /* ------------------------------------------------------------------ */
 /*  Normalised row shared by the three databases                       */
 /* ------------------------------------------------------------------ */
+
+/** Après Gaïa only — what the monthly extraction shows next to the table columns. */
+export interface ApresDetails {
+  versements: {
+    valides: number;
+    enAttente: number;
+    refuses: number;
+    /** Σ of the validated règlements (the only ones that reduce the solde dû). */
+    totalValide: number;
+    totalEnAttente: number;
+    /** Latest non-refused règlement ("" / 0 when the client never paid). */
+    dernierDate: string;
+    dernierMontant: number;
+  };
+  /** apres_gaia_med row, or null when no follow-up was ever recorded for this client. */
+  med: ApresGaiaMedRow | null;
+}
 
 export interface DbRow {
   key: string; // `${kind}:${id}` — one per customer (also the key of the état juridique)
@@ -42,6 +59,8 @@ export interface DbRow {
   derniereMedISO: string;
   // Fast text search
   searchText: string;
+  /** Après Gaïa only: versements + MED summary. */
+  apres?: ApresDetails;
   /** The source record: a row of avant_gaia / apres_gaia (exact column names) or an Entreprise. */
   raw: AvantGaiaRow | ApresGaiaRow | EntrepriseClient;
 }
@@ -245,6 +264,7 @@ export function toExportRows(rows: DbRow[], store: Record<string, StoredJuridiqu
   return rows.map((r) => {
     const j = store[r.key];
     const last = lastMED(j);
+    const a = r.apres;
     return {
       ...(r.raw as unknown as Record<string, unknown>),
       // computed columns (not in the tables): ignored when a file is re-imported
@@ -253,6 +273,26 @@ export function toExportRows(rows: DbRow[], store: Record<string, StoredJuridiqu
       nbMisesEnDemeure: r.nbMed,
       derniereMiseEnDemeure: last?.date ?? "",
       numeroDerniereMED: last?.numero ?? "",
+      // Après Gaïa: versements + MED details (also ignored when a file is re-imported)
+      ...(a
+        ? {
+            versements_valides: a.versements.valides,
+            versements_en_attente: a.versements.enAttente,
+            total_verse_valide: a.versements.totalValide,
+            dernier_versement_date: a.versements.dernierDate,
+            dernier_versement_montant: a.versements.dernierMontant,
+            invitation_paiement_etat: a.med?.invitation_paiement_etat ?? "NON_ENVOYEE",
+            invitation_paiement_date: a.med?.invitation_paiement_date ?? "",
+            med_lettre_etat: a.med?.med_lettre_etat ?? "NON_ENVOYEE",
+            med_lettre_date: a.med?.med_lettre_date ?? "",
+            engagement_etat: a.med?.engagement_etat ?? "NON_ENGAGE",
+            engagement_date: a.med?.engagement_date ?? "",
+            cas_particulier: a.med?.cas_particulier ?? "",
+            med_huissier_etat: a.med?.med_huissier_etat ?? "NON_ENVOYEE",
+            med_huissier_date: a.med?.med_huissier_date ?? "",
+            etat_juridique_med: a.med?.etat_juridique ?? "Procédure en cours",
+          }
+        : {}),
     };
   });
 }

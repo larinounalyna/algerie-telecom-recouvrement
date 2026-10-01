@@ -6,6 +6,7 @@ import { validateTranche, trancheBounds, MIN_TRANCHE } from "../../shared/lib/pa
 import { entrepriseToDebtor } from "../../shared/lib/debtor";
 import { buildTrancheDocument } from "../../shared/lib/trancheDocument";
 import { greenTheme } from "../../shared/theme/theme";
+import { splitTTC } from "../../shared/lib/tva";
 import { stadeInfo } from "../../shared/lib/juridique";
 import { useAppData } from "../../store/AppData";
 import FactureModal, { FactureData } from "../facture/FactureModal";
@@ -149,10 +150,8 @@ export default function EntrepriseForm({
 
   const f = current !== null;
 
-  // TVA is subtracted FROM the TTC (not added on top of the HT):
-  //   TVA = TTC × taux ;  HT = TTC − TVA
-  const tvaAmount = current ? Math.round(current.montantTTC * (current.tva / 100) * 100) / 100 : 0;
-  const montantHT = current ? Math.round((current.montantTTC - tvaAmount) * 100) / 100 : 0;
+  // La TVA est incluse dans le TTC : TVA = TTC × taux / (100 + taux), HT = TTC − TVA
+  const { tva: tvaAmount, ht: montantHT } = current ? splitTTC(current.montantTTC, current.tva) : { tva: 0, ht: 0 };
 
   const { min, max } = trancheBounds(current?.solde ?? 0);
 

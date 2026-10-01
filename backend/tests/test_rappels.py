@@ -15,6 +15,7 @@ os.environ["DATABASE_URL"] = f"sqlite:///{_tmp.name}"
 os.environ["REMINDER_SCHEDULER_ENABLED"] = "false"
 os.environ["REMINDER_DELAY_DAYS"] = "30"
 os.environ["REMINDER_COUNT_PENDING"] = "true"
+os.environ["DELETE_VERSEMENT_PASSWORD"] = "test-password"
 
 import pytest
 from fastapi.testclient import TestClient
@@ -207,7 +208,7 @@ def test_deleting_a_payment_brings_the_rappel_back(client):
     ref = client.post(f"/api/apres-gaia/{n}/reglements", json={"somme_versement": 50, "date_versement": days_ago(0)}).json()["ref"]
     assert client.get("/api/apres-gaia/rappels/count").json()["actifs"] == 0
 
-    assert client.delete(f"/api/apres-gaia/reglements/{ref}").status_code == 204
+    assert client.delete(f"/api/apres-gaia/reglements/{ref}", headers={"X-Delete-Password": "test-password"}).status_code == 204
 
     # le DELETE a lui-même relancé le contrôle : le rappel est déjà de retour (rouvert, pas dupliqué)
     assert client.get("/api/apres-gaia/rappels/count").json() == {"non_lus": 1, "actifs": 1}

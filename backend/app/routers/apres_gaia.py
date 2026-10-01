@@ -6,6 +6,8 @@ from .. import crud, models, rappels, schemas
 
 from ..database import get_db
 
+from ..security import require_delete_password
+
 from ..realtime import manager
 
 
@@ -269,14 +271,17 @@ async def refuser_reglement(
 
 @router.delete(
     "/reglements/{ref}",
-    status_code=204
+    status_code=204,
+    dependencies=[Depends(require_delete_password)],
 )
 async def delete_reglement(
     ref: int,
     db: Session = Depends(get_db)
 ):
     """Deletes ONE versement by its ref. Irreversible — if it was validated,
-    solde_du recomputes as if it never happened."""
+    solde_du recomputes as if it never happened.
+
+    Protégé : en-tête `X-Delete-Password` = DELETE_VERSEMENT_PASSWORD (.env)."""
 
     r = crud.get_reglement(db, ref)
 
@@ -297,7 +302,8 @@ async def delete_reglement(
 
 @router.delete(
     "/{n}/reglements",
-    response_model=schemas.DeletedCount
+    response_model=schemas.DeletedCount,
+    dependencies=[Depends(require_delete_password)],
 )
 async def delete_reglements_for_client(
     n: int,
@@ -306,7 +312,9 @@ async def delete_reglements_for_client(
     """Deletes EVERY versement recorded for client n (« supprimer les
     versements d'un client »). Irreversible. 404 if n itself doesn't exist
     in apres_gaia; deleting a client with zero versements is a no-op that
-    returns {"deleted": 0}."""
+    returns {"deleted": 0}.
+
+    Protégé : en-tête `X-Delete-Password` = DELETE_VERSEMENT_PASSWORD (.env)."""
 
     _require_client(db, n)
 

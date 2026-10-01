@@ -308,3 +308,29 @@ in order) and idempotency (re-run):
   `/api/apres-gaia/database`, `/api/apres-gaia/reglements`,
   `/api/apres-gaia/{n}/reglements`, `/api/apres-gaia/reglements/{ref}/valider`,
   `/api/apres-gaia/reglements/{ref}/refuser`, `/api/apres-gaia/client/{identifiant}`.
+
+## Supprimer un versement : mot de passe (`.env`)
+
+La suppression d'un versement Après Gaïa (`DELETE /api/apres-gaia/reglements/{ref}` et
+`DELETE /api/apres-gaia/{n}/reglements`) exige le mot de passe défini dans `backend/.env` :
+
+```
+DELETE_VERSEMENT_PASSWORD=votre-mot-de-passe
+```
+
+Le navigateur l'envoie dans l'en-tête `X-Delete-Password` (encodé en pourcentage). Réponses :
+
+| Cas | Code | Message |
+|---|---|---|
+| Mot de passe non défini dans `.env` | 503 | Suppression désactivée (définir la variable puis redémarrer) |
+| En-tête absent | 401 | Mot de passe requis |
+| Mot de passe faux | 403 | Mot de passe incorrect (+ essais restants) |
+| `DELETE_PASSWORD_MAX_ATTEMPTS` (5) essais ratés en `DELETE_PASSWORD_LOCK_MINUTES` (5 min) | 429 | Trop de tentatives, réessayez dans … |
+
+Redémarrer le backend après avoir modifié `.env`.
+
+## TVA
+
+Le taux est unique : `TVA_RATE=19` (`.env`). Les montants Après Gaïa sont **TTC** (TVA incluse) :
+`TVA = TTC × 19 / 119`, `HT = TTC − TVA` (`crud.split_ttc`). Le solde dû est calculé sur le TTC,
+il contient donc déjà la TVA : `solde = max(0, abonnement + dus_ant + montant_compteur − Σ règlements validés)`.

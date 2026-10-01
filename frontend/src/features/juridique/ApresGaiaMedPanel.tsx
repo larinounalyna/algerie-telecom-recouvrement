@@ -169,6 +169,7 @@ export default function ApresGaiaMedPanel({ client, accent, controller }: Props)
   const [printDoc, setPrintDoc] = useState<MedDocType | null>(null);
   const [huissierNom, setHuissierNom] = useState("");
   const [huissierPrenom, setHuissierPrenom] = useState("");
+  const [confirm, setConfirm] = useState<null | "invitation" | "med_lettre" | "engagement" | "huissier">(null);
 
   if (!med) {
     return <p className="text-sm text-gray-500">Chargement du dossier…</p>;
@@ -246,7 +247,7 @@ export default function ApresGaiaMedPanel({ client, accent, controller }: Props)
             <div className="flex gap-2">
               {!invitationDone && (
                 <button
-                  onClick={() => envoyerInvitation()}
+                  onClick={() => setConfirm("invitation")}
                   disabled={busy}
                   className={`px-3 py-1.5 rounded-lg text-xs text-white transition-colors disabled:opacity-60 ${accent.bg} ${accent.hover}`}
                 >
@@ -274,7 +275,7 @@ export default function ApresGaiaMedPanel({ client, accent, controller }: Props)
             <div className="flex gap-2">
               {!medLettreDone && (
                 <button
-                  onClick={() => envoyerMedLettre()}
+                  onClick={() => setConfirm("med_lettre")}
                   disabled={busy}
                   className={`px-3 py-1.5 rounded-lg text-xs text-white transition-colors disabled:opacity-60 ${accent.bg} ${accent.hover}`}
                 >
@@ -302,7 +303,7 @@ export default function ApresGaiaMedPanel({ client, accent, controller }: Props)
             <div className="flex gap-2">
               {!engagementDone && (
                 <button
-                  onClick={() => engager()}
+                  onClick={() => setConfirm("engagement")}
                   disabled={busy}
                   className={`px-3 py-1.5 rounded-lg text-xs text-white transition-colors disabled:opacity-60 ${accent.bg} ${accent.hover}`}
                 >
@@ -340,7 +341,7 @@ export default function ApresGaiaMedPanel({ client, accent, controller }: Props)
                 <input className={inputCls} placeholder="Prénom huissier" value={huissierPrenom} onChange={(e) => setHuissierPrenom(e.target.value)} />
                 <input className={inputCls} placeholder="Nom huissier" value={huissierNom} onChange={(e) => setHuissierNom(e.target.value)} />
                 <button
-                  onClick={() => envoyerMedHuissier(huissierNom, huissierPrenom)}
+                  onClick={() => setConfirm("huissier")}
                   disabled={busy}
                   className={`px-3 py-1.5 rounded-lg text-xs text-white transition-colors disabled:opacity-60 ${accent.bg} ${accent.hover}`}
                 >
@@ -353,6 +354,40 @@ export default function ApresGaiaMedPanel({ client, accent, controller }: Props)
           </div>
         </div>
       </div>
+
+      {confirm && (
+        <ConfirmDialog
+          title={
+            confirm === "invitation"
+              ? "Confirmer l'envoi de l'invitation de paiement ?"
+              : confirm === "med_lettre"
+                ? "Confirmer l'envoi de la mise en demeure par lettre ?"
+                : confirm === "engagement"
+                  ? "Confirmer l'engagement du client ?"
+                  : "Confirmer l'envoi de la mise en demeure par huissier ?"
+          }
+          confirmLabel="Oui, confirmer"
+          busy={busy}
+          onCancel={() => setConfirm(null)}
+          onConfirm={async () => {
+            if (confirm === "invitation") await envoyerInvitation();
+            else if (confirm === "med_lettre") await envoyerMedLettre();
+            else if (confirm === "engagement") await engager();
+            else await envoyerMedHuissier(huissierNom, huissierPrenom);
+            setConfirm(null);
+          }}
+        >
+          <p>
+            Compte n° <b>{client.id}</b> — <b>{[client.nom, client.prenom].filter(Boolean).join(" ")}</b>.
+          </p>
+          <p>
+            {confirm === "huissier" && (huissierNom || huissierPrenom) && (
+              <>Huissier : <b>{[huissierPrenom, huissierNom].filter(Boolean).join(" ")}</b>. </>
+            )}
+            Cette étape sera enregistrée dans le dossier avec la date du jour.
+          </p>
+        </ConfirmDialog>
+      )}
 
       {printDoc && (
         <MedDocumentModal

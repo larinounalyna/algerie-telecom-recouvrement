@@ -2,7 +2,8 @@ import { ReactNode, useEffect, useState } from "react";
 import { AccentTheme, ApresGaiaRow, AvantGaiaRow, DbKind } from "../../types";
 import { DbRow } from "../../shared/lib/dbRows";
 import { stadeInfo } from "../../shared/lib/juridique";
-import { fmtDA } from "../../shared/lib/format";
+import { fmtDA, fmtDate } from "../../shared/lib/format";
+import { etatJuridiqueMedInfo } from "../../shared/lib/juridique";
 
 interface Col {
   label: string;
@@ -82,6 +83,114 @@ const COMPUTED: Col[] = [
   { label: "État juridique", align: "center", cell: juridiqueCell },
 ];
 
+/* ---------- Après Gaïa, monthly extraction: identity + versements + MED ---------- */
+
+const pill = (done: boolean, label: string, date?: string | null) => (
+  <span className="inline-flex flex-col items-center leading-tight">
+    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${done ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+      {label}
+    </span>
+    {done && date && <span className="font-mono text-[11px] text-gray-500 mt-0.5">{fmtDate(date)}</span>}
+  </span>
+);
+
+const dash = <em className="text-gray-300 not-italic">—</em>;
+
+const APRES_EXTRACTION: Col[] = [
+  fieldCol("n"),
+  fieldCol("intitule"),
+  fieldCol("n_appel"),
+  fieldCol("adresse"),
+  fieldCol("commune"),
+  { label: "Solde dû (calculé)", align: "right", cell: soldeCell },
+  {
+    label: "Versements",
+    align: "center",
+    cell: (r) => {
+      const v = r.apres?.versements;
+      if (!v || v.valides + v.enAttente + v.refuses === 0) return <span className="text-xs text-gray-400">Aucun</span>;
+      return (
+        <span className="inline-flex flex-col items-center gap-0.5 text-xs leading-tight">
+          <span className="text-green-700">{v.valides} validé{v.valides > 1 ? "s" : ""}</span>
+          {v.enAttente > 0 && <span className="text-amber-700">{v.enAttente} en attente</span>}
+          {v.refuses > 0 && <span className="text-gray-400">{v.refuses} refusé{v.refuses > 1 ? "s" : ""}</span>}
+        </span>
+      );
+    },
+  },
+  {
+    label: "Total versé (validé)",
+    align: "right",
+    cell: (r) => {
+      const v = r.apres?.versements;
+      return v && v.totalValide > 0 ? <span className="font-mono">{fmtDA(v.totalValide)}</span> : dash;
+    },
+  },
+  {
+    label: "Dernier versement",
+    align: "right",
+    cell: (r) => {
+      const v = r.apres?.versements;
+      if (!v || !v.dernierDate) return dash;
+      return (
+        <span className="inline-flex flex-col items-end leading-tight">
+          <span className="font-mono">{fmtDA(v.dernierMontant)}</span>
+          <span className="font-mono text-[11px] text-gray-500">{fmtDate(v.dernierDate)}</span>
+        </span>
+      );
+    },
+  },
+  {
+    label: "Invitation de paiement",
+    align: "center",
+    cell: (r) => pill(r.apres?.med?.invitation_paiement_etat === "ENVOYEE", r.apres?.med?.invitation_paiement_etat === "ENVOYEE" ? "Envoyée" : "Non envoyée", r.apres?.med?.invitation_paiement_date),
+  },
+  {
+    label: "MED par lettre",
+    align: "center",
+    cell: (r) => pill(r.apres?.med?.med_lettre_etat === "ENVOYEE", r.apres?.med?.med_lettre_etat === "ENVOYEE" ? "Envoyée" : "Non envoyée", r.apres?.med?.med_lettre_date),
+  },
+  {
+    label: "Engagement",
+    align: "center",
+    cell: (r) => {
+      const m = r.apres?.med;
+      return (
+        <span className="inline-flex flex-col items-center leading-tight">
+          {pill(m?.engagement_etat === "ENGAGE", m?.engagement_etat === "ENGAGE" ? "Engagé" : "Non engagé", m?.engagement_date)}
+          {m?.cas_particulier && (
+            <span className="mt-1 max-w-[10rem] truncate text-[11px] text-amber-800" title={m.cas_particulier}>
+              Cas : {m.cas_particulier}
+            </span>
+          )}
+        </span>
+      );
+    },
+  },
+  {
+    label: "MED huissier",
+    align: "center",
+    cell: (r) => {
+      const m = r.apres?.med;
+      const nom = [m?.med_huissier_nom, m?.med_huissier_prenom].filter(Boolean).join(" ");
+      return (
+        <span className="inline-flex flex-col items-center leading-tight">
+          {pill(m?.med_huissier_etat === "ENVOYEE", m?.med_huissier_etat === "ENVOYEE" ? "Envoyée" : "Non envoyée", m?.med_huissier_date)}
+          {m?.med_huissier_etat === "ENVOYEE" && nom && <span className="text-[11px] text-gray-500 mt-0.5 max-w-[9rem] truncate" title={nom}>{nom}</span>}
+        </span>
+      );
+    },
+  },
+  {
+    label: "État juridique",
+    align: "center",
+    cell: (r) => {
+      const e = etatJuridiqueMedInfo(r.apres?.med?.etat_juridique);
+      return <span className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap ${e.badge}`}>{e.court}</span>;
+    },
+  },
+];
+
 const COLUMNS: Record<DbKind, Col[]> = {
   avant: [...AVANT_FIELDS.map(fieldCol), ...COMPUTED],
   apres: [...APRES_FIELDS.map(fieldCol), ...COMPUTED],
@@ -113,9 +222,14 @@ interface Props {
   accent: AccentTheme;
   onOpen: (r: DbRow) => void;
   emptyText?: string;
+  /**
+   * "extraction" (Après Gaïa only): compact identity columns followed by the versements and
+   * MED details, instead of the 38 raw table columns. The full table stays in « Consultation ».
+   */
+  variant?: "full" | "extraction";
 }
 
-export default function RowsTable({ kind, rows, accent, onOpen, emptyText }: Props) {
+export default function RowsTable({ kind, rows, accent, onOpen, emptyText, variant = "full" }: Props) {
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(100);
   const pages = Math.max(1, Math.ceil(rows.length / size));
@@ -124,7 +238,7 @@ export default function RowsTable({ kind, rows, accent, onOpen, emptyText }: Pro
   useEffect(() => setPage(0), [rows, size]);
   const cur = Math.min(page, pages - 1);
   const slice = rows.slice(cur * size, cur * size + size);
-  const cols = COLUMNS[kind];
+  const cols = kind === "apres" && variant === "extraction" ? APRES_EXTRACTION : COLUMNS[kind];
   const hover = accent.hoverLight;
 
   return (

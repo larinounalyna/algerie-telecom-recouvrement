@@ -8,12 +8,16 @@ interface Props {
   /** "danger" = red confirm button (irreversible actions). */
   tone?: "danger" | "default";
   busy?: boolean;
+  /** Greys out the confirm button (e.g. a required field is still empty). */
+  confirmDisabled?: boolean;
+  /** Focus the confirm button on open (default). Turn off when the dialog holds an input to focus. */
+  autoFocusConfirm?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
 
 /** Small modal asking the user to confirm an action. Escape / click outside / "Annuler" cancel it. */
-export default function ConfirmDialog({ title, children, confirmLabel, cancelLabel = "Annuler", tone = "default", busy = false, onConfirm, onCancel }: Props) {
+export default function ConfirmDialog({ title, children, confirmLabel, cancelLabel = "Annuler", tone = "default", busy = false, confirmDisabled = false, autoFocusConfirm = true, onConfirm, onCancel }: Props) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !busy) onCancel();
@@ -28,10 +32,10 @@ export default function ConfirmDialog({ title, children, confirmLabel, cancelLab
         role="alertdialog"
         aria-modal="true"
         aria-label={title}
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 space-y-4"
+        className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 p-6 space-y-4 border-t-4 border-brand"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-lg text-[#1C2235]">{title}</h3>
+        <h3 className="text-lg font-semibold text-[#1b2338]">{title}</h3>
         <div className="text-sm text-gray-600 space-y-2">{children}</div>
         <div className="flex justify-end gap-3 pt-2">
           <button
@@ -43,10 +47,10 @@ export default function ConfirmDialog({ title, children, confirmLabel, cancelLab
           </button>
           <button
             onClick={onConfirm}
-            disabled={busy}
-            autoFocus
+            disabled={busy || confirmDisabled}
+            autoFocus={autoFocusConfirm}
             className={`px-4 py-2 rounded-xl text-sm text-white transition-colors disabled:opacity-60 ${
-              tone === "danger" ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700"
+              tone === "danger" ? "bg-red-600 hover:bg-red-700" : "bg-brand hover:bg-brand-dark"
             }`}
           >
             {busy ? "Patientez…" : confirmLabel}

@@ -22,6 +22,8 @@ interface Props {
   rows: DbRow[];
   accent: AccentTheme;
   onOpen: (r: DbRow) => void;
+  /** Après Gaïa: set when the MED table could not be read, so the MED columns are incomplete. */
+  medError?: string | null;
 }
 
 // An address is needed to post a mise en demeure: on by default, can be relaxed.
@@ -30,7 +32,7 @@ const HIDDEN: (keyof FilterState)[] = ["med", "stade", "soldeMode"];
 
 const fileSlug = (kind: DbKind) => (kind === "avant" ? "avant-gaia" : kind === "apres" ? "apres-gaia" : "entreprises");
 
-export default function ExtractionTab({ kind, rows, accent, onOpen }: Props) {
+export default function ExtractionTab({ kind, rows, accent, onOpen, medError }: Props) {
   const { juridique, markLot, cancelLot } = useAppData();
 
   const [filters, setFilters] = useState<FilterState>({ ...emptyFilters, ...BASELINE });
@@ -67,11 +69,13 @@ export default function ExtractionTab({ kind, rows, accent, onOpen }: Props) {
   };
 
   const n = result.selected.length;
+  // Après Gaïa: how many of the retained clients already paid something (useful to prioritise)
+  const dejaVerse = kind === "apres" ? result.selected.filter((r) => (r.apres?.versements.totalValide ?? 0) > 0 || (r.apres?.versements.enAttente ?? 0) > 0).length : 0;
   const tiles: [string, string, string?][] = [
     ["Clients dans la base", result.totalScanned.toLocaleString("fr-FR")],
     ["Éligibles", result.eligibleCount.toLocaleString("fr-FR"), "jamais mis en demeure, solde > 0, critères respectés"],
     ["Retenus pour ce mois", n.toLocaleString("fr-FR"), Number.isFinite(limitNum) ? `limite : ${limitNum.toLocaleString("fr-FR")}` : "sans limite"],
-    ["Montant à recouvrer", fmtDA(result.montantSelectionne)],
+    ["Montant à recouvrer", fmtDA(result.montantSelectionne), kind === "apres" ? `${dejaVerse.toLocaleString("fr-FR")} retenu(s) ont déjà versé` : undefined],
   ];
 
   return (
@@ -139,6 +143,13 @@ export default function ExtractionTab({ kind, rows, accent, onOpen }: Props) {
           </div>
         )}
 
+        {kind === "apres" && medError && (
+          <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+            Les détails des mises en demeure n'ont pas pu être chargés ({medError}). Les colonnes MED sont incomplètes et les clients déjà mis en
+            demeure ne sont pas écartés : relancez la page avant de valider un lot.
+          </div>
+        )}
+
         {lotThisMonth.length > 0 && (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
             {lotThisMonth.length} lot(s) déjà validé(s) pour {fmtMonth(mois)} (
@@ -191,6 +202,7 @@ export default function ExtractionTab({ kind, rows, accent, onOpen }: Props) {
           rows={result.selected}
           accent={accent}
           onOpen={onOpen}
+          variant="extraction"
           emptyText="Aucun client ne correspond : tous ont déjà reçu une mise en demeure, ou les critères sont trop stricts."
         />
 

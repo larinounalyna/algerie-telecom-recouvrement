@@ -1,9 +1,9 @@
 import type { ApresGaiaDatabase, AvantGaiaDatabase } from "../../services";
 import { apresMontantTTC } from "../../services";
-import type { EntrepriseClient, PaymentTranche, StadeJuridique } from "../../types";
+import type { ApresGaiaMedRow, EntrepriseClient, PaymentTranche, StadeJuridique } from "../../types";
 import { isoDay, toISODate, txt } from "./format";
 import { StoredJuridique, lastMED } from "./juridique";
-import type { DbRow } from "./dbRows";
+import type { ApresDetails, DbRow } from "./dbRows";
 
 /**
  * Turns the records of each database into the normalised `DbRow` used by the
@@ -84,16 +84,57 @@ export function buildAvantRows(db: AvantGaiaDatabase, store: Record<string, Stor
 
 /* ------------------------------ apres_gaia ------------------------------ */
 
+/** A mise en demeure is really sent once the lettre or the huissier step is done (the invitation comes before). */
+const medSteps = (m: ApresGaiaMedRow | null | undefined) =>
+  [
+    m?.med_lettre_etat === "ENVOYEE" ? m.med_lettre_date ?? "" : null,
+    m?.med_huissier_etat === "ENVOYEE" ? m.med_huissier_date ?? "" : null,
+  ].filter((d): d is string => d !== null);
+
 export function buildApresRows(db: ApresGaiaDatabase, store: Record<string, StoredJuridique>): DbRow[] {
   const lastReglement = new Map<number, string>();
+  const summary = new Map<number, ApresDetails["versements"]>();
+  const blank = (): ApresDetails["versements"] => ({
+    valides: 0, enAttente: 0, refuses: 0, totalValide: 0, totalEnAttente: 0, dernierDate: "", dernierMontant: 0,
+  });
+
   for (const g of db.reglements) {
-    if (g.statut === "refuse") continue; // a refused règlement is not a payment
-    lastReglement.set(g.n, maxDate(lastReglement.get(g.n), g.date_versement ?? isoDay(g.created_at)));
+    const v = summary.get(g.n) ?? blank();
+    const montant = g.somme_versement ?? 0;
+    if (g.statut === "refuse") {
+      v.refuses++; // a refused règlement is not a payment
+    } else {
+      const date = g.date_versement ?? isoDay(g.created_at);
+      lastReglement.set(g.n, maxDate(lastReglement.get(g.n), date));
+      if (g.statut === "valide") {
+        v.valides++;
+        v.totalValide = Math.round((v.totalValide + montant) * 100) / 100;
+      } else {
+        v.enAttente++;
+        v.totalEnAttente = Math.round((v.totalEnAttente + montant) * 100) / 100;
+      }
+      if (date >= v.dernierDate) {
+        v.dernierDate = date;
+        v.dernierMontant = montant;
+      }
+    }
+    summary.set(g.n, v);
   }
+
+  // one apres_gaia_med row per client (if the API ever returns several, the last one wins)
+  const meds = new Map<number, ApresGaiaMedRow>();
+  for (const m of db.meds) meds.set(m.n, m);
 
   return db.rows.map((r) => {
     const id = String(r.n);
     const key = `apres:${id}`;
+    const med = meds.get(r.n) ?? null;
+    const local = juridiqueBits(key, store);
+    // The extraction must not offer again a client who already got a MED, wherever it was recorded:
+    // in the real apres_gaia_med table, or in the lot validated from this screen (local store).
+    const sent = medSteps(med);
+    const nbMed = Math.max(local.nbMed, sent.length);
+    const derniereMedISO = [local.derniereMedISO, ...sent].filter(Boolean).sort().pop() ?? "";
     return {
       key,
       rowKey: key,
@@ -120,7 +161,10 @@ export function buildApresRows(db: ApresGaiaDatabase, store: Record<string, Stor
       motifRes: txt(r.motif_res),
       bimestre: "",
       ...noEntreprise,
-      ...juridiqueBits(key, store),
+      ...local,
+      nbMed,
+      derniereMedISO,
+      apres: { versements: summary.get(r.n) ?? blank(), med },
       searchText: [id, r.n_client, r.n_appel, r.intitule, r.adresse, r.commune, r.actel, r.motif_res, r.code_postal]
         .join(" ")
         .toLowerCase(),

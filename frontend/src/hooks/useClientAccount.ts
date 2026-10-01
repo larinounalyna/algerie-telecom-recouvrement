@@ -26,11 +26,11 @@ export interface ClientAccount {
   loading: boolean;
   error: string | null;
   /** `note` = lieu de versement (Après Gaïa) or agent (Entreprises). Absent when the database is read-only. */
-  recordPayment?: Action<[montant: number, note?: string]>;
+  recordPayment?: Action<[montant: number, note?: string, date?: string]>;
   validate?: Action<[trancheId: string]>;
   refuse?: Action<[trancheId: string]>;
-  /** Supprime définitivement un versement (Après Gaïa uniquement — l'appelant doit demander confirmation). */
-  remove?: Action<[trancheId: string]>;
+  /** Supprime définitivement un versement (Après Gaïa uniquement) — exige le mot de passe du serveur. */
+  remove?: Action<[trancheId: string, password: string]>;
 }
 
 /**
@@ -76,10 +76,10 @@ export function useClientAccount(kind: DbKind, id: string): ClientAccount {
       client: apres.data ? apresProfileToDebtor(apres.data) : null,
       loading: apres.loading,
       error: apres.error,
-      recordPayment: (montant, lieu) => mutateApres(() => recordReglement(id, { montant, lieu })),
+      recordPayment: (montant, lieu, date) => mutateApres(() => recordReglement(id, { montant, lieu, date: date || undefined })),
       validate: (ref) => mutateApres(() => validateReglement(ref)),
       refuse: (ref) => mutateApres(() => refuseReglement(ref)),
-      remove: (ref) => mutateApres(() => deleteReglement(ref)),
+      remove: (ref, password) => mutateApres(() => deleteReglement(ref, password)),
     };
   }
 
@@ -88,8 +88,8 @@ export function useClientAccount(kind: DbKind, id: string): ClientAccount {
     client: c ? entrepriseToDebtor(c) : null,
     loading: false,
     error: null,
-    recordPayment: async (montant, agent) => {
-      applyPayment(id, { id: generateTrancheId(), montant, date: todayISO(), agent: agent || undefined });
+    recordPayment: async (montant, agent, date) => {
+      applyPayment(id, { id: generateTrancheId(), montant, date: date || todayISO(), agent: agent || undefined });
       return null;
     },
     validate: async (tid) => {

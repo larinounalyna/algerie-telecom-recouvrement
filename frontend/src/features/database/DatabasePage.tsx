@@ -247,7 +247,7 @@ export default function DatabasePage({ kind, onClose }: Props) {
           </section>
         </div>
       ) : (
-        <ExtractionTab kind={kind} rows={customers} accent={accent} onOpen={open} />
+        <ExtractionTab kind={kind} rows={customers} accent={accent} onOpen={open} medError={kind === "apres" ? apresDb.data?.medError ?? null : null} />
       )}
 
       {detail && <ClientDetailHost kind={kind} id={detail.id} initialTab={detail.tab} onClose={() => setDetail(null)} />}

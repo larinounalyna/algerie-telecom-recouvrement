@@ -22,6 +22,15 @@ class Settings(BaseSettings):
     REMINDER_SCHEDULER_ENABLED: bool = True    # false = pas de contrôle auto (POST /rappels/verifier reste dispo)
     REMINDER_COUNT_PENDING: bool = True        # un règlement 'en_attente' compte comme « a versé »
 
+    # --- Suppression d'un versement : protégée par un mot de passe (fichier .env) ---
+    # Vide = suppression DÉSACTIVÉE (le serveur répond 503 tant qu'il n'est pas défini).
+    DELETE_VERSEMENT_PASSWORD: str = ""
+    DELETE_PASSWORD_MAX_ATTEMPTS: int = 5      # essais ratés autorisés avant blocage temporaire
+    DELETE_PASSWORD_LOCK_MINUTES: float = 5    # durée du blocage (et fenêtre de comptage des essais)
+
+    # --- TVA (en %) : taux unique, utilisé pour séparer HT / TVA d'un montant TTC ---
+    TVA_RATE: float = 19.0
+
     @property
     def sqlalchemy_database_url(self) -> str:
         if self.DATABASE_URL:

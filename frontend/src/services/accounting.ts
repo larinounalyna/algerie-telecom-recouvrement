@@ -9,7 +9,10 @@ import type { ApresGaiaReglementRow, ApresGaiaRow, AvantGaiaRow, AvantGaiaVersem
 
 export const round2 = (n: number) => Math.round(n * 100) / 100;
 
-/** apres_gaia has no TTC column: TTC = abonnement + dus_ant + montant_compteur. */
+/**
+ * apres_gaia has no TTC column: TTC = abonnement + dus_ant + montant_compteur.
+ * Ce TTC contient déjà la TVA (19 %, voir shared/lib/tva.ts) : le solde dû se calcule donc sur le TTC.
+ */
 export const apresMontantTTC = (r: Pick<ApresGaiaRow, "abonnement" | "dus_ant" | "montant_compteur">): number =>
   round2((r.abonnement ?? 0) + (r.dus_ant ?? 0) + (r.montant_compteur ?? 0));
 

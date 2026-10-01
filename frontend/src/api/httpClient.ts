@@ -27,6 +27,8 @@ interface RequestOptions {
   body?: unknown;
   query?: Query;
   signal?: AbortSignal;
+  /** Extra request headers (e.g. the delete password). */
+  headers?: Record<string, string>;
 }
 
 function buildUrl(path: string, query?: Query) {
@@ -53,14 +55,17 @@ async function readError(res: Response): Promise<string> {
 }
 
 /** The single place where the frontend talks HTTP to the backend. */
-export async function request<T>(path: string, { method = "GET", body, query, signal }: RequestOptions = {}): Promise<T> {
+export async function request<T>(path: string, { method = "GET", body, query, signal, headers }: RequestOptions = {}): Promise<T> {
   let res: Response;
   try {
     res = await fetch(buildUrl(path, query), {
       method,
       signal,
       // FormData (file upload): the browser sets the multipart Content-Type + boundary itself.
-      headers: body !== undefined && !(body instanceof FormData) ? { "Content-Type": "application/json" } : undefined,
+      headers: {
+        ...(body !== undefined && !(body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
+        ...headers,
+      },
       body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
     });
   } catch (e) {

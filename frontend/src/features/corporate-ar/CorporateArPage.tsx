@@ -30,7 +30,7 @@ export default function CorporateArPage({ onBack }: Props) {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <PageHeaderBar title="CORPORATE AR" onBack={onBack} />
+      <PageHeaderBar title="Corporate AR — Créances des entreprises" onBack={onBack} />
       <div className="flex-1 min-h-0 overflow-hidden bg-bg">
         <CorporateArForm
           store={store}
