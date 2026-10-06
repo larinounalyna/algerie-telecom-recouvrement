@@ -22,6 +22,20 @@ function juridiqueBits(key: string, store: Record<string, StoredJuridique>) {
 const noEntreprise = { formeJuridique: "", secteur: "", nif: "" };
 const maxDate = (a: string | undefined, b: string) => (!a || b > a ? b : a);
 
+/**
+ * Excel-style "find": the text searched is built from EVERY column of the record (not only the
+ * visible/main ones), so a search matches any cell of any row of the whole table — the table's
+ * pagination only affects what is displayed, never what is searched.
+ */
+function allColumnsText(raw: object, ...extra: unknown[]): string {
+  const parts: string[] = [];
+  for (const v of [...Object.values(raw), ...extra]) {
+    if (v === null || v === undefined || v === "") continue;
+    parts.push(String(v));
+  }
+  return parts.join(" ").toLowerCase();
+}
+
 /* ------------------------------ avant_gaia ------------------------------ */
 
 export function buildAvantRows(db: AvantGaiaDatabase, store: Record<string, StoredJuridique>): DbRow[] {
@@ -76,7 +90,7 @@ export function buildAvantRows(db: AvantGaiaDatabase, store: Record<string, Stor
       bimestre,
       ...noEntreprise,
       ...juridiqueBits(key, store),
-      searchText: [id, r.intitule, adresse, r.actel, r.code_payeur, r.n_ccp, bimestre].join(" ").toLowerCase(),
+      searchText: allColumnsText(r, adresse, bimestre),
       raw: r,
     };
   });
@@ -165,9 +179,7 @@ export function buildApresRows(db: ApresGaiaDatabase, store: Record<string, Stor
       nbMed,
       derniereMedISO,
       apres: { versements: summary.get(r.n) ?? blank(), med },
-      searchText: [id, r.n_client, r.n_appel, r.intitule, r.adresse, r.commune, r.actel, r.motif_res, r.code_postal]
-        .join(" ")
-        .toLowerCase(),
+      searchText: allColumnsText(r),
       raw: r,
     };
   });
