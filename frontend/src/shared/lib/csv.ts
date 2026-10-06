@@ -21,7 +21,23 @@ export function exportToCSV<T extends Record<string, unknown>>(rows: T[], filena
   URL.revokeObjectURL(url);
 }
 
-function parseCSVLine(line: string): string[] {
+/**
+ * The separator is decided ONCE, from the header line: ";" (French Excel) or ",". Deciding per
+ * character would cut a French decimal such as 12,5 in two in a ";"-separated file.
+ */
+function detectDelimiter(headerLine: string): ";" | "," {
+  let semi = 0;
+  let comma = 0;
+  let inQuotes = false;
+  for (const ch of headerLine) {
+    if (ch === '"') inQuotes = !inQuotes;
+    else if (!inQuotes && ch === ";") semi++;
+    else if (!inQuotes && ch === ",") comma++;
+  }
+  return comma > semi ? "," : ";";
+}
+
+function parseCSVLine(line: string, delimiter: ";" | ","): string[] {
   const out: string[] = [];
   let cur = "";
   let inQuotes = false;
@@ -38,7 +54,7 @@ function parseCSVLine(line: string): string[] {
       }
     } else if (ch === '"') {
       inQuotes = true;
-    } else if (ch === ";" || ch === ",") {
+    } else if (ch === delimiter) {
       out.push(cur);
       cur = "";
     } else {
@@ -52,9 +68,10 @@ function parseCSVLine(line: string): string[] {
 export function importFromCSV(text: string): Record<string, string>[] {
   const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).filter((l) => l.trim().length > 0);
   if (lines.length < 2) return [];
-  const headers = parseCSVLine(lines[0]);
+  const delimiter = detectDelimiter(lines[0]);
+  const headers = parseCSVLine(lines[0], delimiter);
   return lines.slice(1).map((line) => {
-    const values = parseCSVLine(line);
+    const values = parseCSVLine(line, delimiter);
     const row: Record<string, string> = {};
     headers.forEach((h, i) => (row[h] = values[i] ?? ""));
     return row;

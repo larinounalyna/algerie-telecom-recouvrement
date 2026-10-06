@@ -1,6 +1,7 @@
 import type { CorporateClient, CorporateFile, CorporateInput } from "../features/corporate-ar/types";
 import { API_BASE_URL } from "./config";
-import { request } from "./httpClient";
+import type { DeleteAllResult } from "../types";
+import { deletePasswordHeader, request } from "./httpClient";
 
 /* Wire format of the backend (snake_case, see backend/app/schemas.py). */
 interface FileDto {
@@ -73,6 +74,10 @@ export const corporateArApi = {
       method: "POST",
       body: { rows: rows.map((r) => ({ ...inputToDto(r), ...(r.code ? { code: r.code } : {}) })) },
     }),
+
+  /** "Vider la table": every company AND its documents. Irreversible, needs the delete password. */
+  deleteAll: (password: string) =>
+    request<DeleteAllResult>(`${BASE}/clients`, { method: "DELETE", headers: deletePasswordHeader(password) }),
 
   uploadFile: async (code: string, file: File) => {
     const form = new FormData();

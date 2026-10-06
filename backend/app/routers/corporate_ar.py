@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from .. import crud, models, schemas
 from ..database import get_db
 from ..realtime import manager
+from ..security import require_delete_password
 
 router = APIRouter(prefix="/api/corporate-ar", tags=["Corporate AR"])
 
@@ -63,6 +64,39 @@ async def delete_client(code: str, db: Session = Depends(get_db)):
     crud.delete_corporate_client(db, _get_or_404(db, code))
     await _notify("deleted", code)
     return Response(status_code=204)
+
+
+@router.delete(
+    "/clients",
+    response_model=schemas.DeleteAllResult,
+    dependencies=[Depends(require_delete_password)],
+)
+async def delete_all_clients(db: Session = Depends(get_db)):
+    """Vide TOUTE la table des entreprises ET tous leurs documents joints.
+    Irreversible. Le compteur de codes n'est pas remis à zéro (un code supprimé
+    n'est jamais réattribué). Pour insérer en masse : POST /clients/import.
+
+    Protégé : en-tête `X-Delete-Password` = DELETE_VERSEMENT_PASSWORD (.env)."""
+
+    details = crud.delete_all_corporate_clients(db)
+    await _notify("deleted_all")
+    return {"deleted": details["corporate_ar_client"], "details": details}
+
+
+@router.delete(
+    "/files",
+    response_model=schemas.DeleteAllResult,
+    dependencies=[Depends(require_delete_password)],
+)
+async def delete_all_files(db: Session = Depends(get_db)):
+    """Supprime TOUS les documents joints de TOUTES les entreprises (les
+    entreprises restent). Irreversible. Pour en ajouter : POST /clients/{code}/files.
+
+    Protégé : en-tête `X-Delete-Password` = DELETE_VERSEMENT_PASSWORD (.env)."""
+
+    details = crud.delete_all_corporate_files(db)
+    await _notify("files_deleted_all")
+    return {"deleted": details["corporate_ar_file"], "details": details}
 
 
 @router.post("/clients/import", response_model=schemas.CorporateArImportResult, status_code=201)

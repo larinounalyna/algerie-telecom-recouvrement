@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import enum
 import re
 from datetime import date
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.orm import Session
 
 from . import models, schemas
@@ -909,3 +910,178 @@ def get_corporate_file(db: Session, code: str, file_id: int) -> models.Corporate
 def delete_corporate_file(db: Session, obj: models.CorporateArFile) -> None:
     db.delete(obj)
     db.commit()
+
+
+# --------------------------------------------------------------------- #
+#  Insertion en masse / suppression totale — toutes les tables           #
+# --------------------------------------------------------------------- #
+BULK_CHUNK = 1000  # lignes par INSERT groupé (garde chaque requête SQL raisonnable)
+
+
+def _plain(values: dict) -> dict:
+    """Enums -> valeurs texte, pour les colonnes String de la base."""
+
+    return {k: (v.value if isinstance(v, enum.Enum) else v) for k, v in values.items()}
+
+
+def _bulk_insert(db: Session, model, rows: list[dict]) -> int:
+    """INSERT groupé, par paquets. Tout ou rien : la moindre erreur annule tout."""
+
+    try:
+        for i in range(0, len(rows), BULK_CHUNK):
+            db.execute(insert(model), rows[i : i + BULK_CHUNK])
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    return len(rows)
+
+
+def _wipe(db: Session, model) -> int:
+    """DELETE FROM table, SANS commit (l'appelant valide)."""
+
+    return db.execute(delete(model)).rowcount or 0
+
+
+def _missing_apres_gaia_ns(db: Session, ns: set[int]) -> list[int]:
+    """Les `n` de `ns` qui n'existent pas dans apres_gaia (triés)."""
+
+    wanted = sorted(ns)
+    found: set[int] = set()
+
+    for i in range(0, len(wanted), BULK_CHUNK):
+        chunk = wanted[i : i + BULK_CHUNK]
+        found.update(db.scalars(select(models.ApresGaia.n).where(models.ApresGaia.n.in_(chunk))))
+
+    return [n for n in wanted if n not in found]
+
+
+# ---- avant_gaia ------------------------------------------------------ #
+def create_avant_gaia_bulk(db: Session, rows: list[schemas.AvantGaiaCreate]) -> int:
+    return _bulk_insert(db, models.AvantGaia, [r.model_dump() for r in rows])
+
+
+def delete_all_avant_gaia(db: Session) -> dict[str, int]:
+    count = _wipe(db, models.AvantGaia)
+    db.commit()
+
+    return {"avant_gaia": count}
+
+
+def create_avant_gaia_versement_bulk(db: Session, rows: list[schemas.AvantGaiaVersementCreate]) -> int:
+    return _bulk_insert(db, models.AvantGaiaVersement, [r.model_dump() for r in rows])
+
+
+def delete_all_avant_gaia_versements(db: Session) -> dict[str, int]:
+    count = _wipe(db, models.AvantGaiaVersement)
+    db.commit()
+
+    return {"avant_gaia_versement": count}
+
+
+# ---- apres_gaia (+ tables enfants) ----------------------------------- #
+def delete_all_apres_gaia(db: Session) -> dict[str, int]:
+    """Vide apres_gaia ET ses tables enfants (rappels, MED, règlements).
+
+    PostgreSQL le ferait seul (ON DELETE CASCADE) ; on supprime quand même les
+    enfants explicitement, d'abord, pour (1) pouvoir en donner le détail et
+    (2) que ce soit vrai même sans contraintes de clé étrangère (SQLite de test).
+    """
+
+    details = {
+        "apres_gaia_rappel": _wipe(db, models.ApresGaiaRappel),
+        "apres_gaia_med": _wipe(db, models.ApresGaiaMed),
+        "apres_gaia_regelement": _wipe(db, models.ApresGaiaReglement),
+    }
+    details["apres_gaia"] = _wipe(db, models.ApresGaia)
+    db.commit()
+
+    return details
+
+
+# ---- apres_gaia_regelement ------------------------------------------- #
+def create_reglements_bulk(db: Session, rows: list[schemas.ApresGaiaReglementBulkCreate]) -> int:
+    return _bulk_insert(db, models.ApresGaiaReglement, [_plain(r.model_dump()) for r in rows])
+
+
+def delete_all_reglements(db: Session) -> dict[str, int]:
+    count = _wipe(db, models.ApresGaiaReglement)
+    db.commit()
+
+    return {"apres_gaia_regelement": count}
+
+
+# ---- apres_gaia_med --------------------------------------------------- #
+def n_with_med(db: Session, ns: set[int]) -> list[int]:
+    """Parmi `ns`, les clients qui ont déjà une ligne apres_gaia_med."""
+
+    wanted = sorted(ns)
+    found: set[int] = set()
+
+    for i in range(0, len(wanted), BULK_CHUNK):
+        chunk = wanted[i : i + BULK_CHUNK]
+        found.update(db.scalars(select(models.ApresGaiaMed.n).where(models.ApresGaiaMed.n.in_(chunk))))
+
+    return sorted(found)
+
+
+def create_med_bulk(db: Session, rows: list[schemas.ApresGaiaMedCreate]) -> int:
+    return _bulk_insert(db, models.ApresGaiaMed, [_plain(r.model_dump()) for r in rows])
+
+
+def delete_all_med(db: Session) -> dict[str, int]:
+    # Les rappels dépendent de l'engagement (apres_gaia_med) : sans MED, le
+    # prochain contrôle les résoudrait tous de toute façon, mais on ne les
+    # supprime PAS ici — ils ont leur propre DELETE /rappels.
+    count = _wipe(db, models.ApresGaiaMed)
+    db.commit()
+
+    return {"apres_gaia_med": count}
+
+
+# ---- apres_gaia_rappel ------------------------------------------------ #
+def existing_rappel_keys(db: Session, ns: set[int]) -> set[tuple[int, str, date]]:
+    """Clés (n, type, echeance_date) déjà présentes — UNIQUE en base."""
+
+    wanted = sorted(ns)
+    found: set[tuple[int, str, date]] = set()
+
+    for i in range(0, len(wanted), BULK_CHUNK):
+        chunk = wanted[i : i + BULK_CHUNK]
+        stmt = select(models.ApresGaiaRappel.n, models.ApresGaiaRappel.type, models.ApresGaiaRappel.echeance_date).where(
+            models.ApresGaiaRappel.n.in_(chunk)
+        )
+        found.update((n, t, d) for n, t, d in db.execute(stmt))
+
+    return found
+
+
+def create_rappels_bulk(db: Session, rows: list[schemas.ApresGaiaRappelCreate]) -> int:
+    return _bulk_insert(db, models.ApresGaiaRappel, [_plain(r.model_dump()) for r in rows])
+
+
+def delete_all_rappels(db: Session) -> dict[str, int]:
+    count = _wipe(db, models.ApresGaiaRappel)
+    db.commit()
+
+    return {"apres_gaia_rappel": count}
+
+
+# ---- corporate_ar ----------------------------------------------------- #
+def delete_all_corporate_files(db: Session) -> dict[str, int]:
+    count = _wipe(db, models.CorporateArFile)
+    db.commit()
+
+    return {"corporate_ar_file": count}
+
+
+def delete_all_corporate_clients(db: Session) -> dict[str, int]:
+    """Vide corporate_ar_client ET ses documents joints. Le compteur de codes
+    n'est PAS remis à zéro : un code supprimé n'est jamais réattribué."""
+
+    files = _wipe(db, models.CorporateArFile)
+    clients = _wipe(db, models.CorporateArClient)
+    db.commit()
+
+    return {"corporate_ar_file": files, "corporate_ar_client": clients}

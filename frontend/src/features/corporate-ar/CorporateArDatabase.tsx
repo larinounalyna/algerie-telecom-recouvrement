@@ -9,6 +9,7 @@ import { CorporateStore } from "./useCorporateClients";
 import { CorpFilters, applyCorpFilters, countActive, distinct, emptyCorpFilters } from "./filters";
 import { invoiceAgeLabel, isOneYearOld } from "./invoiceAge";
 import { parseImport, toExportRows } from "./csvMapping";
+import DeleteTableDialog from "../database/DeleteTableDialog";
 
 interface Props {
   store: CorporateStore;
@@ -300,6 +301,7 @@ export default function CorporateArDatabase({ store, startWithOldOnly, onClose, 
   const [filters, setFilters] = useState<CorpFilters>({ ...emptyCorpFilters, oneYear: !!startWithOldOnly });
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [importing, setImporting] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const filtered = useMemo(() => applyCorpFilters(clients, filters), [clients, filters]);
@@ -366,6 +368,13 @@ export default function CorporateArDatabase({ store, startWithOldOnly, onClose, 
             {importing ? "Import en cours…" : "⭱ Importer (CSV)"}
           </button>
           <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={onFile} />
+          <button
+            onClick={() => setShowDelete(true)}
+            className="px-4 py-2 text-sm bg-red-600/90 text-white rounded-lg hover:bg-red-700 transition-colors whitespace-nowrap"
+            title="Supprimer toutes les entreprises et leurs documents (mot de passe requis)"
+          >
+            🗑 Vider la table
+          </button>
         </div>
       </div>
 
@@ -411,6 +420,15 @@ export default function CorporateArDatabase({ store, startWithOldOnly, onClose, 
             <Table rows={filtered} accent={accent} onOpen={(c) => onOpen(c.code)} />
           </section>
         </div>
+      )}
+
+      {showDelete && (
+        <DeleteTableDialog
+          options={[{ id: "corporate_ar_client", count: clients.length }]}
+          onChanged={() => store.reload()}
+          onDone={(m) => setMsg(m)}
+          onClose={() => setShowDelete(false)}
+        />
       )}
     </div>
   );

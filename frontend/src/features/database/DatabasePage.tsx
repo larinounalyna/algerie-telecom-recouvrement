@@ -7,13 +7,16 @@ import { exportToCSV, importFromCSV } from "../../shared/lib/csv";
 import { toEntrepriseClient } from "../../shared/lib/importers";
 import { fmtDA } from "../../shared/lib/format";
 import { labelFor, themeFor } from "../../shared/theme/theme";
-import { errorMessage, insertApresGaiaRows, parseApresGaiaCsv } from "../../services";
+import { IMPORT_TABLES_BY_KIND, errorMessage } from "../../services";
 import { useApresGaiaDatabase, useAvantGaiaDatabase } from "../../hooks";
 import ClientDetailHost from "../client-detail/ClientDetailHost";
 import BackLink from "../../shared/ui/BackLink";
 import FilterPanel from "./FilterPanel";
 import ExtractionTab from "./ExtractionTab";
 import RowsTable from "./RowsTable";
+import ImportCsvDialog from "./ImportCsvDialog";
+import DeleteTableDialog from "./DeleteTableDialog";
+import type { DeleteTableOption } from "./DeleteTableDialog";
 
 interface Props {
   kind: DbKind;
@@ -32,6 +35,10 @@ const fileSlug = (kind: DbKind) => (kind === "avant" ? "avant-gaia" : kind === "
  *
  * Avant / Après Gaïa show the real tables (exact column names) loaded from the
  * API; Entreprises still comes from the local store.
+ *
+ * Header buttons for Avant / Après Gaïa: "Importer (CSV)" (pop-up: choose the table — comptes /
+ * factures AND règlements / versements — then the file) and "Vider une table" (pop-up with the
+ * delete password).
  */
 export default function DatabasePage({ kind, onClose }: Props) {
   const { entreprises, juridique, importRows, hasDemo, loadDemo, clearDemo } = useAppData();
@@ -46,6 +53,8 @@ export default function DatabasePage({ kind, onClose }: Props) {
   const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [loadingDemo, setLoadingDemo] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const source = kind === "avant" ? avantDb : kind === "apres" ? apresDb : null;
@@ -73,6 +82,25 @@ export default function DatabasePage({ kind, onClose }: Props) {
   }, [filtered]);
   const demo = kind === "entreprise" && hasDemo();
 
+  // apres_gaia.n that exist — règlements of unknown accounts are refused before being sent.
+  const knownAccountNs = useMemo(() => (apresDb.data ? new Set(apresDb.data.rows.map((r) => r.n)) : undefined), [apresDb.data]);
+
+  const deleteOptions = useMemo<DeleteTableOption[]>(() => {
+    if (kind === "avant")
+      return [
+        { id: "avant_gaia", count: avantDb.data?.rows.length ?? null },
+        { id: "avant_gaia_versement", count: avantDb.data?.versements.length ?? null },
+      ];
+    if (kind === "apres")
+      return [
+        { id: "apres_gaia", count: apresDb.data?.rows.length ?? null },
+        { id: "apres_gaia_regelement", count: apresDb.data?.reglements.length ?? null },
+        { id: "apres_gaia_med", count: apresDb.data && !apresDb.data.medError ? apresDb.data.meds.length : null },
+        { id: "apres_gaia_rappel" },
+      ];
+    return [];
+  }, [kind, avantDb.data, apresDb.data]);
+
   const open = (r: DbRow) => r.id && setDetail({ id: r.id, tab: "finance" });
 
   const exportFiltered = () =>
@@ -81,30 +109,13 @@ export default function DatabasePage({ kind, onClose }: Props) {
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
-    if (!file || kind === "avant") return;
+    if (!file || kind !== "entreprise") return; // Avant / Après Gaïa import through the pop-up (ImportCsvDialog)
     const reader = new FileReader();
     reader.onload = async () => {
       try {
         const raw = importFromCSV(String(reader.result ?? ""));
         if (raw.length === 0) {
           setImportMsg({ ok: false, text: "Fichier vide ou illisible : aucune ligne importée. L'en-tête doit reprendre les noms de colonnes de l'export." });
-          return;
-        }
-
-        if (kind === "apres") {
-          // Après Gaïa → straight into the apres_gaia table through the API
-          const { rows: parsed, ignored } = parseApresGaiaCsv(raw);
-          if (parsed.length === 0) {
-            setImportMsg({ ok: false, text: "Aucune colonne reconnue : l'en-tête doit utiliser les noms de colonnes de la table apres_gaia (n_appel, intitule, adresse…)." });
-            return;
-          }
-          setImporting(true);
-          const inserted = await insertApresGaiaRows(parsed);
-          await apresDb.reload();
-          setImportMsg({
-            ok: inserted > 0,
-            text: `${inserted.toLocaleString("fr-FR")} ligne(s) ajoutée(s) à apres_gaia${ignored ? `, ${ignored.toLocaleString("fr-FR")} ignorée(s) (aucune colonne reconnue)` : ""}.`,
-          });
           return;
         }
 
@@ -163,12 +174,31 @@ export default function DatabasePage({ kind, onClose }: Props) {
               {loadingDemo ? "Génération…" : demo ? "Retirer les données de démo" : `Charger ${DEMO_COUNT.toLocaleString("fr-FR")} clients de démo`}
             </button>
           )}
-          {kind !== "avant" && (
+          {kind === "entreprise" && (
             <>
               <button onClick={() => fileRef.current?.click()} disabled={importing} className={headerBtn}>
                 {importing ? "Import en cours…" : "⭱ Importer (CSV)"}
               </button>
               <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={onFile} />
+            </>
+          )}
+          {source && (
+            <>
+              <button
+                onClick={() => setShowImport(true)}
+                disabled={loading && rows.length === 0}
+                className={headerBtn}
+                title={kind === "avant" ? "Importer un CSV dans avant_gaia ou avant_gaia_versement" : "Importer un CSV dans apres_gaia ou apres_gaia_regelement"}
+              >
+                ⭱ Importer (CSV)
+              </button>
+              <button
+                onClick={() => setShowDelete(true)}
+                className="px-4 py-2 text-sm bg-red-600/90 text-white rounded-lg hover:bg-red-700 transition-colors whitespace-nowrap"
+                title="Supprimer toutes les lignes d'une table (mot de passe requis)"
+              >
+                🗑 Vider une table
+              </button>
             </>
           )}
         </div>
@@ -248,6 +278,26 @@ export default function DatabasePage({ kind, onClose }: Props) {
         </div>
       ) : (
         <ExtractionTab kind={kind} rows={customers} accent={accent} onOpen={open} medError={kind === "apres" ? apresDb.data?.medError ?? null : null} />
+      )}
+
+      {showImport && source && (kind === "avant" || kind === "apres") && (
+        <ImportCsvDialog
+          tables={IMPORT_TABLES_BY_KIND[kind]}
+          accent={accent}
+          knownAccountNs={knownAccountNs}
+          onChanged={() => source.reload()}
+          onSuccess={(text) => setImportMsg({ ok: true, text })}
+          onClose={() => setShowImport(false)}
+        />
+      )}
+
+      {showDelete && source && (
+        <DeleteTableDialog
+          options={deleteOptions}
+          onChanged={() => source.reload()}
+          onDone={(m) => setImportMsg(m)}
+          onClose={() => setShowDelete(false)}
+        />
       )}
 
       {detail && <ClientDetailHost kind={kind} id={detail.id} initialTab={detail.tab} onClose={() => setDetail(null)} />}

@@ -3,6 +3,14 @@ import { WS_URL } from "./config";
 /** Events pushed by the backend after every write (see backend/app/realtime.py). */
 export type RealtimeEventName =
   | "apres_gaia.created"
+  | "apres_gaia.deleted_all"
+  | "apres_gaia_regelement.deleted_all"
+  | "apres_gaia_rappel.bulk_created"
+  | "apres_gaia_rappel.deleted_all"
+  | "avant_gaia.created"
+  | "avant_gaia.deleted_all"
+  | "avant_gaia_versement.created"
+  | "avant_gaia_versement.deleted_all"
   | "apres_gaia_regelement.created"
   | "apres_gaia_regelement.validated"
   | "apres_gaia_regelement.refused"

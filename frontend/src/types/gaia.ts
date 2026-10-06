@@ -289,3 +289,33 @@ export interface RappelCheckResult {
   crees: ApresGaiaRappel[];
   resolus: ApresGaiaRappel[];
 }
+
+/* ------------------------------------------------------------------ */
+/*  Insertion en masse / suppression totale (toutes les tables)        */
+/* ------------------------------------------------------------------ */
+
+/** Body of POST /api/avant-gaia (server-generated columns excluded). */
+export type AvantGaiaInsert = Partial<Omit<AvantGaiaRow, "ref" | "created_at" | "updated_at">>;
+
+/** Body of POST /api/avant-gaia/versements. */
+export type AvantGaiaVersementInsert = Partial<Omit<AvantGaiaVersementRow, "ref" | "created_at" | "updated_at">>;
+
+/** One line of POST /api/apres-gaia/reglements — `n` (an existing apres_gaia.n) is in the body here. */
+export interface ReglementBulkInsert {
+  n: number;
+  somme_versement?: number | null;
+  date_versement?: string | null;
+  lieu_versement?: string | null;
+  statut?: ReglementStatut;
+}
+
+/** Answer of every bulk POST (except POST /api/apres-gaia, which also returns the rows). */
+export interface BulkInsertResult {
+  inserted: number;
+}
+
+/** Answer of every "vider la table" DELETE. `details` = rows removed per table (cascades included). */
+export interface DeleteAllResult {
+  deleted: number;
+  details: Record<string, number>;
+}

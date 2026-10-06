@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -439,3 +439,88 @@ class CorporateArImportResult(BaseModel):
     added: int
     updated: int
     generated: int
+
+
+# --------------------------------------------------------------------- #
+#  Insertion en masse / suppression totale — toutes les tables           #
+# --------------------------------------------------------------------- #
+class BulkInsertResult(BaseModel):
+    """Réponse des POST « insérer en masse » (sauf apres_gaia, qui renvoie aussi les lignes)."""
+
+    inserted: int
+
+
+class DeleteAllResult(BaseModel):
+    """Réponse des DELETE « vider la table ».
+
+    `deleted` = lignes supprimées dans la table visée.
+    `details` = lignes supprimées par table, y compris celles qui partent en
+    cascade (ex. vider apres_gaia vide aussi ses règlements, MED et rappels).
+    """
+
+    deleted: int
+    details: dict[str, int] = {}
+
+
+class AvantGaiaCreate(AvantGaiaBase):
+    """Une ligne de POST /api/avant-gaia (`ref`, `created_at`, `updated_at` : posés par la base)."""
+
+    pass
+
+
+class AvantGaiaVersementCreate(AvantGaiaVersementBase):
+    """Une ligne de POST /api/avant-gaia/versements."""
+
+    pass
+
+
+class ApresGaiaReglementBulkCreate(ApresGaiaReglementBase):
+    """Une ligne de POST /api/apres-gaia/reglements. Ici `n` est dans le corps
+    (une même requête peut viser plusieurs clients) ; il doit exister dans apres_gaia."""
+
+    n: int
+    statut: VersementStatut = VersementStatut.en_attente
+
+
+class ApresGaiaMedCreate(BaseModel):
+    """Une ligne de POST /api/apres-gaia/med. Une seule ligne par client `n`."""
+
+    n: int
+
+    invitation_paiement_date: Optional[date] = None
+    invitation_paiement_etat: EnvoiEtat = EnvoiEtat.NON_ENVOYEE
+
+    med_lettre_date: Optional[date] = None
+    med_lettre_etat: EnvoiEtat = EnvoiEtat.NON_ENVOYEE
+
+    engagement_date: Optional[date] = None
+    engagement_etat: EngagementEtat = EngagementEtat.NON_ENGAGE
+
+    med_huissier_nom: Optional[str] = Field(None, max_length=100)
+    med_huissier_prenom: Optional[str] = Field(None, max_length=100)
+    med_huissier_date: Optional[date] = None
+    med_huissier_etat: EnvoiEtat = EnvoiEtat.NON_ENVOYEE
+
+    cas_particulier: Optional[str] = Field(None, max_length=100)
+    cas_particulier_date: Optional[date] = None
+    cas_particulier_commentaire: Optional[str] = None
+
+    etat_juridique: EtatJuridique = EtatJuridique.PROCEDURE_EN_COURS
+
+
+class ApresGaiaRappelCreate(BaseModel):
+    """Une ligne de POST /api/apres-gaia/rappels (restauration / import).
+    Les rappels sont normalement créés par le contrôle automatique."""
+
+    n: int
+    type: str = Field("versement_mensuel", max_length=50)
+    reference_date: date
+    reference_source: Literal["engagement", "versement"]
+    echeance_date: date
+    mois_impayes: int = Field(1, ge=1)
+    jours_ecoules: int = Field(..., ge=0)
+    solde_du: Optional[float] = None
+    message: str = Field(..., min_length=1)
+    statut: RappelStatut = RappelStatut.nouveau
+    read_at: Optional[datetime] = None
+    resolved_at: Optional[datetime] = None

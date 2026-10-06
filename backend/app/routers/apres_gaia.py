@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from .. import crud, models, rappels, schemas
@@ -9,6 +10,8 @@ from ..database import get_db
 from ..security import require_delete_password
 
 from ..realtime import manager
+
+from ._common import db_error, preview, require_rows
 
 
 router = APIRouter(
@@ -22,9 +25,10 @@ def _as_list(data) -> list:
     return data if isinstance(data, list) else [data]
 
 
-async def _refresh_rappels(db: Session, n: int) -> None:
+async def _refresh_rappels(db: Session, n: int | None) -> None:
     """Re-contrôle les rappels après un règlement (résout ceux devenus sans objet)
-    et pousse les événements. Ne doit jamais faire échouer l'écriture du règlement."""
+    et pousse les événements. Ne doit jamais faire échouer l'écriture du règlement.
+    `n=None` : contrôle tous les clients (insertion / suppression en masse)."""
 
     try:
         result = rappels.run_check(db, only_n=n)
@@ -111,6 +115,32 @@ async def create_rows(
     }
 
 
+@router.delete(
+    "",
+    response_model=schemas.DeleteAllResult,
+    dependencies=[Depends(require_delete_password)],
+)
+async def delete_all_rows(
+    db: Session = Depends(get_db)
+):
+    """DELETE the WHOLE apres_gaia table. Irreversible.
+
+    Les clients partent avec TOUT ce qui leur est rattaché : règlements
+    (apres_gaia_regelement), mises en demeure (apres_gaia_med) et rappels
+    (apres_gaia_rappel) — `details` en donne le décompte par table.
+
+    Protégé : en-tête `X-Delete-Password` = DELETE_VERSEMENT_PASSWORD (.env)."""
+
+    details = crud.delete_all_apres_gaia(db)
+
+    await manager.broadcast(
+        "apres_gaia.deleted_all",
+        {"count": details["apres_gaia"], "details": details}
+    )
+
+    return {"deleted": details["apres_gaia"], "details": details}
+
+
 # --------------------------------------------------------------------- #
 # Raw règlement (payment) table access
 # --------------------------------------------------------------------- #
@@ -136,6 +166,71 @@ def list_reglements(
         skip=skip,
         limit=limit
     )
+
+
+@router.post(
+    "/reglements",
+    response_model=schemas.BulkInsertResult,
+    status_code=201
+)
+async def create_reglements_bulk(
+    data: schemas.ApresGaiaReglementBulkCreate | list[schemas.ApresGaiaReglementBulkCreate],
+    db: Session = Depends(get_db)
+):
+    """Insert into apres_gaia_regelement — ONE object or a LIST (tout ou rien).
+
+    `n` est dans le corps de chaque ligne et doit exister dans apres_gaia
+    (sinon 404, rien n'est inséré). `statut` : `en_attente` par défaut.
+    Pour UN règlement via l'URL, voir POST /{n}/reglements."""
+
+    rows = require_rows(data)
+
+    missing = crud._missing_apres_gaia_ns(db, {r.n for r in rows})
+
+    if missing:
+        raise HTTPException(
+            404,
+            f"Compte(s) introuvable(s) dans apres_gaia.n : {preview(missing)}. Rien n'a été inséré."
+        )
+
+    try:
+        inserted = crud.create_reglements_bulk(db, rows)
+    except SQLAlchemyError as exc:
+        raise db_error(exc)
+
+    await manager.broadcast(
+        "apres_gaia_regelement.created",
+        {"count": inserted}
+    )
+
+    await _refresh_rappels(db, None)
+
+    return {"inserted": inserted}
+
+
+@router.delete(
+    "/reglements",
+    response_model=schemas.DeleteAllResult,
+    dependencies=[Depends(require_delete_password)],
+)
+async def delete_all_reglements(
+    db: Session = Depends(get_db)
+):
+    """DELETE every row of apres_gaia_regelement (tous les clients). Irreversible.
+    Pour ceux d'UN seul client : DELETE /{n}/reglements.
+
+    Protégé : en-tête `X-Delete-Password` = DELETE_VERSEMENT_PASSWORD (.env)."""
+
+    details = crud.delete_all_reglements(db)
+
+    await manager.broadcast(
+        "apres_gaia_regelement.deleted_all",
+        {"count": details["apres_gaia_regelement"]}
+    )
+
+    await _refresh_rappels(db, None)
+
+    return {"deleted": details["apres_gaia_regelement"], "details": details}
 
 
 @router.post(
@@ -372,6 +467,89 @@ async def _envoyer(
     )
 
     return await _med_response(db, n, action, row)
+
+
+@router.post(
+    "/med",
+    response_model=schemas.BulkInsertResult,
+    status_code=201
+)
+async def create_med_bulk(
+    data: schemas.ApresGaiaMedCreate | list[schemas.ApresGaiaMedCreate],
+    db: Session = Depends(get_db)
+):
+    """Insert into apres_gaia_med — ONE object or a LIST (tout ou rien).
+
+    Une seule ligne par client : 404 si un `n` n'existe pas dans apres_gaia,
+    409 si un `n` a déjà une ligne MED (ou apparaît deux fois dans la requête)
+    — pour corriger une ligne existante, utiliser PATCH /{n}/med."""
+
+    rows = require_rows(data)
+
+    ns = [r.n for r in rows]
+
+    duplicated = sorted({n for n in ns if ns.count(n) > 1})
+
+    if duplicated:
+        raise HTTPException(
+            409,
+            f"n en double dans la requête (une seule ligne MED par client) : {preview(duplicated)}."
+        )
+
+    missing = crud._missing_apres_gaia_ns(db, set(ns))
+
+    if missing:
+        raise HTTPException(
+            404,
+            f"Compte(s) introuvable(s) dans apres_gaia.n : {preview(missing)}. Rien n'a été inséré."
+        )
+
+    already = crud.n_with_med(db, set(ns))
+
+    if already:
+        raise HTTPException(
+            409,
+            f"Ces clients ont déjà une ligne MED : {preview(already)}. Rien n'a été inséré."
+        )
+
+    try:
+        inserted = crud.create_med_bulk(db, rows)
+    except SQLAlchemyError as exc:
+        raise db_error(exc)
+
+    await manager.broadcast(
+        "apres_gaia_med.updated",
+        {"action": "bulk_created", "count": inserted}
+    )
+
+    await _refresh_rappels(db, None)
+
+    return {"inserted": inserted}
+
+
+@router.delete(
+    "/med",
+    response_model=schemas.DeleteAllResult,
+    dependencies=[Depends(require_delete_password)],
+)
+async def delete_all_med(
+    db: Session = Depends(get_db)
+):
+    """DELETE every row of apres_gaia_med (mises en demeure + état juridique +
+    cas particuliers de TOUS les clients). Irreversible.
+
+    Protégé : en-tête `X-Delete-Password` = DELETE_VERSEMENT_PASSWORD (.env)."""
+
+    details = crud.delete_all_med(db)
+
+    await manager.broadcast(
+        "apres_gaia_med.updated",
+        {"action": "deleted_all", "count": details["apres_gaia_med"]}
+    )
+
+    await _refresh_rappels(db, None)
+
+    return {"deleted": details["apres_gaia_med"], "details": details}
 
 
 @router.get(

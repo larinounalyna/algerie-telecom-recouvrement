@@ -47,6 +47,30 @@ npm run build            # production build in dist/
   Indépendant de Engagé / Non engagé ; imprimé sur le formulaire d'engagement quand il existe.
 - **Solde dû = 0** : la fiche affiche « ✓ Ce client est à jour » avec un bouton **Imprimer l'attestation de règlement** (FR / عربي).
 
+## Importer / vider les tables (Base de données)
+
+Dans l'écran **Base de données** de *Hors Gaïa* et d'*Après Gaïa*, l'en-tête a deux boutons qui ouvrent un pop-up :
+
+| Bouton | Hors Gaïa | Après Gaïa |
+| --- | --- | --- |
+| **⭱ Importer (CSV)** | `avant_gaia`, `avant_gaia_versement` | `apres_gaia`, `apres_gaia_regelement` |
+| **🗑 Vider une table** | `avant_gaia`, `avant_gaia_versement` | `apres_gaia`, `apres_gaia_regelement`, `apres_gaia_med`, `apres_gaia_rappel` |
+
+*Corporate AR* a aussi **🗑 Vider la table** (entreprises + documents joints) ; son import CSV existait déjà.
+
+**Importer** — 1) choisir la table, 2) choisir le fichier, 3) vérifier (lignes prêtes / ignorées, aperçu), puis *Insérer*.
+L'en-tête du CSV reprend les **vrais noms de colonnes** (celui de l'export convient ; majuscules et espaces tolérés, colonnes
+inconnues ignorées). Le pop-up propose un **modèle CSV** à télécharger. Séparateur `;` ou `,` (détecté sur la ligne d'en-tête :
+les décimales françaises `12,5` sont donc lues correctement dans un fichier à `;`). Pour les règlements, la colonne `n` est
+obligatoire : les lignes dont le compte n'existe pas dans `apres_gaia` sont écartées avant l'envoi (sinon le serveur refuserait tout).
+
+**Vider** — le pop-up demande le **mot de passe de suppression** (`DELETE_VERSEMENT_PASSWORD` du `.env` du backend) et une case à
+cocher « irréversible ». Il reste ouvert en cas d'erreur (mot de passe faux, trop d'essais, serveur). Vider `apres_gaia` supprime
+aussi les règlements, MED et rappels de ces comptes.
+
+Code : `features/database/ImportCsvDialog.tsx`, `features/database/DeleteTableDialog.tsx`, `services/tableImport.ts` (colonnes de
+chaque table, analyse du CSV, envoi par paquets de 2 000), appels dans `api/avantGaiaApi.ts` et `api/apresGaiaApi.ts`.
+
 ## Correspondance des colonnes (formulaire ← table)
 | Champ du formulaire | Avant Gaïa (`avant_gaia`) | Après Gaïa (`apres_gaia`) |
 |---|---|---|

@@ -7,9 +7,9 @@ section).
 
 **Division of responsibility, per your instructions:**
 
-- **Avant Gaïa** (`avant_gaia`, `avant_gaia_versement`) — **read-only**. No insert,
-  no payment recording, no validation through this API. Rows come from wherever
-  your data pipeline puts them; the API only ever reads them back.
+- **Avant Gaïa** (`avant_gaia`, `avant_gaia_versement`) — reads, plus (added on
+  request) **bulk insert and delete-all** on both tables. No payment validation
+  through this API (that lives on Après Gaïa).
 - **Après Gaïa** (`apres_gaia`, `apres_gaia_regelement`) — full workflow: create
   clients, record règlements ("Encaisser"), and validate/refuse them.
 
@@ -128,8 +128,8 @@ this. **Please confirm the real formula.**
 | GET    | `/api/avant-gaia/versements`        | List `avant_gaia_versement` rows. Filter: `n_abonne`.                                                        |
 | GET    | `/api/avant-gaia/client/{n_abonne}` | Aggregated profile: client info, facturation, consommation history, versement history, `solde_du`.           |
 
-There is no `POST`, `PUT`, `DELETE`, `valider` or `refuser` anywhere under
-`/api/avant-gaia` — all of that now lives under Après Gaïa.
+There is no `PUT`, `valider` or `refuser` under `/api/avant-gaia` (that workflow lives under
+Après Gaïa). `POST` and `DELETE` (whole table) exist — see "Insérer en masse / tout supprimer".
 
 ### Après Gaïa — full workflow
 
@@ -246,6 +246,44 @@ Réglages (`.env`) : `REMINDER_DELAY_DAYS=30`, `REMINDER_CHECK_INTERVAL_HOURS=24
 Un client avec un `cas_particulier` (échéancier hors barème) est contrôlé comme les autres ; `cas_particulier`
 est dans `GET /{n}/med` si le frontend veut l'afficher à côté du rappel.
 
+## Insérer en masse / tout supprimer — TOUTES les tables
+
+Chaque table a maintenant : un **POST** (un objet *ou* une liste, **tout ou rien** — si une
+ligne est refusée, rien n'est inséré) et un **DELETE** qui vide la table. Les POST sont insérés
+par paquets de 1000 lignes. Les ids (`ref`, `id`, `n`) et les dates `created_at` / `updated_at`
+sont posés par la base, sauf `n` des tables enfants qui est dans le corps.
+
+| Table | Insérer (POST) | Tout supprimer (DELETE) | Remarques |
+| --- | --- | --- | --- |
+| `avant_gaia` | `/api/avant-gaia` | `/api/avant-gaia` | **nouveau** (les deux) |
+| `avant_gaia_versement` | `/api/avant-gaia/versements` | `/api/avant-gaia/versements` | **nouveau** (les deux) |
+| `apres_gaia` | `/api/apres-gaia` *(existait)* | `/api/apres-gaia` | DELETE **nouveau** : vide aussi règlements, MED et rappels des clients (le détail par table est dans `details`) |
+| `apres_gaia_regelement` | `/api/apres-gaia/reglements` | `/api/apres-gaia/reglements` | `n` dans le corps de chaque ligne, doit exister (404 sinon). `statut` : `en_attente` par défaut. *(Pour un seul règlement : `POST /{n}/reglements`, inchangé.)* |
+| `apres_gaia_med` | `/api/apres-gaia/med` | `/api/apres-gaia/med` | une ligne par client : 404 si `n` inconnu, 409 si `n` a déjà une ligne MED ou est en double |
+| `apres_gaia_rappel` | `/api/apres-gaia/rappels` | `/api/apres-gaia/rappels` | 404 si `n` inconnu, 409 si `(n, type, echeance_date)` existe déjà. Le contrôle automatique peut recréer des rappels après un DELETE |
+| `corporate_ar_client` | `/api/corporate-ar/clients/import` *(existait : import en masse)* | `/api/corporate-ar/clients` | DELETE vide aussi les documents joints ; le compteur de codes `CAR-xxxxxx` n'est **pas** remis à zéro |
+| `corporate_ar_file` | `/api/corporate-ar/clients/{code}/files` *(existait, fichier par fichier)* | `/api/corporate-ar/files` | DELETE supprime tous les documents, les entreprises restent |
+
+**Tous les DELETE « vider la table » exigent le mot de passe** (en-tête `X-Delete-Password`,
+`DELETE_VERSEMENT_PASSWORD` du `.env`, mêmes réponses 401 / 403 / 429 / 503 que la suppression
+d'un versement — voir plus bas). Ils renvoient `{"deleted": <lignes de la table>, "details": {table: nb}}`.
+Les POST renvoient `{"inserted": <nb>}` (sauf `POST /api/apres-gaia`, inchangé : `{inserted, rows}`).
+Erreurs : 400 liste vide · 422 champ invalide · 404 `n` inconnu · 409 doublon / contrainte.
+
+Événements WebSocket ajoutés : `avant_gaia.created` / `.deleted_all`, `avant_gaia_versement.created` /
+`.deleted_all`, `apres_gaia.deleted_all`, `apres_gaia_regelement.deleted_all`,
+`apres_gaia_med.updated` (`action: bulk_created | deleted_all`), `apres_gaia_rappel.bulk_created` /
+`.deleted_all`, `corporate_ar.changed` (`action: deleted_all | files_deleted_all`).
+
+```bash
+# insérer 2 lignes avant_gaia
+curl -X POST localhost:8000/api/avant-gaia -H "Content-Type: application/json" \
+  -d '[{"n_abonne":"A1","ttc":100},{"n_abonne":"A2","ttc":200}]'
+
+# vider avant_gaia (mot de passe = DELETE_VERSEMENT_PASSWORD)
+curl -X DELETE localhost:8000/api/avant-gaia -H "X-Delete-Password: votre-mot-de-passe"
+```
+
 ## Real-time
 
 Every mutating endpoint calls `manager.broadcast(event, payload)`
@@ -267,13 +305,13 @@ ws.onmessage = (msg) => {
 };
 ```
 
-(Avant Gaïa broadcasts nothing now — it never writes anything.)
+(Avant Gaïa ne diffuse que les événements de insertion / suppression en masse ci-dessus.)
 
 ## Tests automatiques
 
 ```bash
 pip install pytest httpx
-pytest -q tests      # 17 tests, base SQLite jetable — ne touche pas ton PostgreSQL
+pytest -q tests      # 58 tests, base SQLite jetable — ne touche pas ton PostgreSQL
 ```
 
 Couvrent : engagé > 30 j → rappel · < 30 j → rien · non engagé → rien · versement récent (même `en_attente`)

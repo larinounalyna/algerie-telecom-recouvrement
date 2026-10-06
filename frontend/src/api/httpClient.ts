@@ -93,3 +93,11 @@ export async function fetchAllPages<T>(
 
 /** Human-readable message for any thrown value (ApiError messages are already user-facing French). */
 export const errorMessage = (e: unknown): string => (e instanceof Error ? e.message : "Erreur inattendue.");
+
+/**
+ * Header carrying the delete password (DELETE_VERSEMENT_PASSWORD of the backend .env). Encoded because
+ * an HTTP header can't carry accents / arabic characters as-is; the backend decodes it.
+ */
+export const deletePasswordHeader = (password: string): Record<string, string> => ({
+  "X-Delete-Password": encodeURIComponent(password),
+});

@@ -106,7 +106,7 @@ export function useCorporateClients() {
     [reload],
   );
 
-  return { clients, loaded, error, create, update, remove, importRows };
+  return { clients, loaded, error, reload, create, update, remove, importRows };
 }
 
 export type CorporateStore = ReturnType<typeof useCorporateClients>;

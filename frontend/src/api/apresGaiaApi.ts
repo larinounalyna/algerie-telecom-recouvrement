@@ -13,8 +13,11 @@ import type {
   ApresGaiaRow,
   EtatJuridiqueMed,
   ReglementInsert,
+  ReglementBulkInsert,
+  BulkInsertResult,
+  DeleteAllResult,
 } from "../types";
-import { fetchAllPages, request } from "./httpClient";
+import { deletePasswordHeader, fetchAllPages, request } from "./httpClient";
 
 /** Après Gaïa — read + create règlements + validate/refuse them. The identifier is `apres_gaia.n`. */
 export const apresGaiaApi = {
@@ -53,6 +56,26 @@ export const apresGaiaApi = {
   /** Inserts one or many rows into `apres_gaia` (CSV import). */
   createRows: (rows: ApresGaiaInsert[]) =>
     request<ApresGaiaBulkResult>("/api/apres-gaia", { method: "POST", body: rows }),
+
+  /** Inserts one or many règlements (CSV import) — `n` is in each line and must exist. All or nothing per request. */
+  createReglements: (rows: ReglementBulkInsert[]) =>
+    request<BulkInsertResult>("/api/apres-gaia/reglements", { method: "POST", body: rows }),
+
+  /**
+   * "Vider la table" — each needs the delete password. `deleteAllRows` also removes every client's
+   * règlements, MED and rappels (cascade); the others only empty their own table.
+   */
+  deleteAllRows: (password: string) =>
+    request<DeleteAllResult>("/api/apres-gaia", { method: "DELETE", headers: deletePasswordHeader(password) }),
+
+  deleteAllReglements: (password: string) =>
+    request<DeleteAllResult>("/api/apres-gaia/reglements", { method: "DELETE", headers: deletePasswordHeader(password) }),
+
+  deleteAllMed: (password: string) =>
+    request<DeleteAllResult>("/api/apres-gaia/med", { method: "DELETE", headers: deletePasswordHeader(password) }),
+
+  deleteAllRappels: (password: string) =>
+    request<DeleteAllResult>("/api/apres-gaia/rappels", { method: "DELETE", headers: deletePasswordHeader(password) }),
 
   /* -------------------------------------------------------------- */
   /* apres_gaia_med — mises en demeure + état juridique, always by n */
