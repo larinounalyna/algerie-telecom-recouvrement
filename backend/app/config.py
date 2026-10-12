@@ -32,11 +32,11 @@ class Settings(BaseSettings):
     TVA_RATE: float = 19.0
 
     @property
-    def sqlalchemy_database_url(self) -> str:
+    def database_url(self) -> str:
         if self.DATABASE_URL:
             return self.DATABASE_URL
         return (
-            f"postgresql+psycopg://{self.DB_USER}:{self.DB_PASSWORD}"
+            f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}"
             f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
         )
 
