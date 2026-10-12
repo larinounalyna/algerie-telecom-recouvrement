@@ -233,6 +233,24 @@ export default function CorporateArForm({ store, initialCode, onOpenDB }: Props)
                       filledClass={old ? "bg-red-50 border-2 border-red-400" : accent.filled}
                       mono
                     />
+                    <Field
+                      label="Date remis à la SAJ"
+                      value={current.dateRemisSaj ? fmtDate(current.dateRemisSaj) : ""}
+                      placeholder="Non renseignée"
+                      readOnly
+                      filled
+                      filledClass={accent.filled}
+                      mono
+                    />
+                    <Field
+                      label="Date remis au client"
+                      value={current.dateRemisClient ? fmtDate(current.dateRemisClient) : ""}
+                      placeholder="Non renseignée"
+                      readOnly
+                      filled
+                      filledClass={accent.filled}
+                      mono
+                    />
                   </div>
 
                   <div>

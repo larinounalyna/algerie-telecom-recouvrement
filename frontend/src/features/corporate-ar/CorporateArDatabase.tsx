@@ -165,6 +165,8 @@ function Table({ rows, accent: a, onOpen }: { rows: CorporateClient[]; accent: A
     ["Créance", "right"],
     ["N° facture", "left"],
     ["Date de facture", "left"],
+    ["Remis à la SAJ", "left"],
+    ["Remis au client", "left"],
     ["Désignation", "left"],
     ["Observation", "left"],
     ["Documents", "center"],
@@ -214,6 +216,12 @@ function Table({ rows, accent: a, onOpen }: { rows: CorporateClient[]; accent: A
                 </Cell>
                 <Cell>
                   <span className="font-mono text-sm text-gray-600">{c.dateFacture ? fmtDate(c.dateFacture) : blank}</span>
+                </Cell>
+                <Cell>
+                  <span className="font-mono text-sm text-gray-600">{c.dateRemisSaj ? fmtDate(c.dateRemisSaj) : blank}</span>
+                </Cell>
+                <Cell>
+                  <span className="font-mono text-sm text-gray-600">{c.dateRemisClient ? fmtDate(c.dateRemisClient) : blank}</span>
                 </Cell>
                 <Cell>
                   <span className="block max-w-[12rem] truncate text-gray-600" title={c.designation}>

@@ -15,10 +15,13 @@ from __future__ import annotations
 
 import enum
 
-from sqlalchemy import BigInteger, Date, DateTime, ForeignKey, Integer, LargeBinary, Numeric, SmallInteger, String, Text, text
+from sqlalchemy import BigInteger, Date, DateTime, ForeignKey, Integer, JSON, LargeBinary, Numeric, SmallInteger, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .database import Base
+
+# 14-digit account keys do not fit in 32 bits. SQLite (tests) needs INTEGER for its autoincrement PK.
+AccountKey = BigInteger().with_variant(Integer, "sqlite")
 
 
 class VersementStatut(str, enum.Enum):
@@ -132,7 +135,7 @@ class ApresGaia(Base):
 
     __tablename__ = "apres_gaia"
 
-    n: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    n: Mapped[int] = mapped_column(AccountKey, primary_key=True, autoincrement=True)
 
     codetat: Mapped[int | None] = mapped_column()
     codsit: Mapped[int | None] = mapped_column()
@@ -205,7 +208,7 @@ class ApresGaiaReglement(Base):
 
     ref: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
 
-    n: Mapped[int] = mapped_column(Integer, ForeignKey("apres_gaia.n", ondelete="CASCADE"), index=True)
+    n: Mapped[int] = mapped_column(AccountKey, ForeignKey("apres_gaia.n", ondelete="CASCADE"), index=True)
 
     somme_versement: Mapped[float | None] = mapped_column(Numeric(12, 2))
     date_versement: Mapped[object | None] = mapped_column(Date)
@@ -229,7 +232,7 @@ class ApresGaiaMed(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
 
-    n: Mapped[int] = mapped_column(Integer, ForeignKey("apres_gaia.n", ondelete="CASCADE"), index=True)
+    n: Mapped[int] = mapped_column(AccountKey, ForeignKey("apres_gaia.n", ondelete="CASCADE"), index=True)
 
     invitation_paiement_date: Mapped[object | None] = mapped_column(Date)
     invitation_paiement_etat: Mapped[str] = mapped_column(String(20), default=EnvoiEtat.NON_ENVOYEE.value, server_default="NON_ENVOYEE")
@@ -269,7 +272,7 @@ class ApresGaiaRappel(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
 
-    n: Mapped[int] = mapped_column(Integer, ForeignKey("apres_gaia.n", ondelete="CASCADE"), index=True)
+    n: Mapped[int] = mapped_column(AccountKey, ForeignKey("apres_gaia.n", ondelete="CASCADE"), index=True)
 
     type: Mapped[str] = mapped_column(String(50), default="versement_mensuel", server_default="versement_mensuel")
 
@@ -304,6 +307,8 @@ class CorporateArClient(Base):
 
     numero_facture: Mapped[str | None] = mapped_column(String(100))
     date_facture: Mapped[object | None] = mapped_column(Date, index=True)
+    date_remis_saj: Mapped[object | None] = mapped_column(Date)
+    date_remis_client: Mapped[object | None] = mapped_column(Date)
 
     designation: Mapped[str] = mapped_column(String(255))
     observation: Mapped[str] = mapped_column(String(255))
@@ -338,3 +343,34 @@ class CorporateArCounter(Base):
     id: Mapped[int] = mapped_column(SmallInteger, primary_key=True, default=1)
     last_number: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
+
+# --------------------------------------------------------------------- #
+#  Projects and project attachments — sql/010_schema_projects.sql        #
+# --------------------------------------------------------------------- #
+class ProjectArProject(Base):
+    __tablename__ = "project_ar_project"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    project_name: Mapped[str] = mapped_column(String(255), index=True)
+    contract_number: Mapped[str] = mapped_column(String(100), index=True)
+    amendment_numbers: Mapped[list] = mapped_column(JSON, default=list)
+    launch_date: Mapped[object] = mapped_column(Date)
+    pieces_remises: Mapped[list] = mapped_column(JSON, default=list)
+    end_date: Mapped[object | None] = mapped_column(Date)
+    estimated_amount: Mapped[float | None] = mapped_column(Numeric(14, 2))
+    final_invoice_amount: Mapped[float | None] = mapped_column(Numeric(14, 2))
+    payment_date: Mapped[object | None] = mapped_column(Date)
+    created_at: Mapped[object] = mapped_column(DateTime(timezone=True), server_default=text("CURRENT_TIMESTAMP"))
+    updated_at: Mapped[object] = mapped_column(DateTime(timezone=True), server_default=text("CURRENT_TIMESTAMP"))
+
+
+class ProjectArFile(Base):
+    __tablename__ = "project_ar_file"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("project_ar_project.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    content_type: Mapped[str] = mapped_column(String(100))
+    size: Mapped[int] = mapped_column(Integer)
+    data: Mapped[bytes] = mapped_column(LargeBinary, deferred=True)
+    created_at: Mapped[object] = mapped_column(DateTime(timezone=True), server_default=text("CURRENT_TIMESTAMP"))

@@ -76,6 +76,8 @@ export default function ClientFormModal({ initial, onCancel, onSave }: Props) {
   const [creance, setCreance] = useState(initial ? String(initial.creance) : "");
   const [numeroFacture, setNumeroFacture] = useState(initial?.numeroFacture ?? "");
   const [dateFacture, setDateFacture] = useState(initial?.dateFacture ?? "");
+  const [dateRemisSaj, setDateRemisSaj] = useState(initial?.dateRemisSaj ?? "");
+  const [dateRemisClient, setDateRemisClient] = useState(initial?.dateRemisClient ?? "");
   const [designation, setDesignation] = useState(initial?.designation ?? "");
   const [observation, setObservation] = useState(initial?.observation ?? "");
   // Documents already stored on the server (can be removed) + documents picked now (uploaded on save).
@@ -113,6 +115,8 @@ export default function ClientFormModal({ initial, onCancel, onSave }: Props) {
         creance: amount,
         numeroFacture: numeroFacture.trim(),
         dateFacture,
+        dateRemisSaj,
+        dateRemisClient,
         designation: designation.trim(),
         observation: observation.trim(),
       }, {
@@ -182,6 +186,14 @@ export default function ClientFormModal({ initial, onCancel, onSave }: Props) {
             <label className="block text-[11px] text-gray-500 mb-0.5">Date de facture</label>
             <input type="date" className={`${inputCls} font-mono`} value={dateFacture} onChange={(e) => setDateFacture(e.target.value)} />
             {isOneYearOld(dateFacture) && <p className="text-xs text-red-600 mt-1">⚠️ Cette facture a un an ou plus.</p>}
+          </div>
+          <div>
+            <label className="block text-[11px] text-gray-500 mb-0.5">Date remis à la SAJ</label>
+            <input type="date" className={`${inputCls} font-mono`} value={dateRemisSaj} onChange={(e) => setDateRemisSaj(e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-[11px] text-gray-500 mb-0.5">Date remis au client</label>
+            <input type="date" className={`${inputCls} font-mono`} value={dateRemisClient} onChange={(e) => setDateRemisClient(e.target.value)} />
           </div>
 
           <div className="col-span-2">

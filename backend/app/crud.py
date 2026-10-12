@@ -4,10 +4,10 @@ import enum
 import re
 from datetime import date
 
-from sqlalchemy import delete, func, insert, select, update
+from sqlalchemy import delete, func, insert, or_, select, update
 from sqlalchemy.orm import Session
 
-from . import models, schemas
+from . import keys, models, schemas
 from .config import get_settings
 
 
@@ -227,6 +227,35 @@ def find_apres_gaia_client(
         return None
 
     return get_apres_gaia_by_n(db, n)
+
+
+def search_apres_gaia_candidates(db: Session, q: str, limit: int = 20) -> list[dict]:
+    """Comptes Après Gaïa correspondant à une saisie, qu'elle soit une clé actuelle
+    (14 chiffres), une ancienne clé (4 à 8 chiffres) ou une clé restée à l'ancien
+    format. Ne choisit jamais à la place de l'agent : renvoie TOUS les candidats,
+    la correspondance exacte en premier (voir app/keys.py)."""
+
+    q = (q or "").strip()
+    if not q.isdigit() or len(q) > 18:
+        return []
+
+    exact = int(q)
+    conditions = [models.ApresGaia.n == exact]
+    conditions += [models.ApresGaia.n.between(low, high) for low, high in keys.new_key_ranges(q)]
+
+    rows = list(db.scalars(select(models.ApresGaia).where(or_(*conditions)).order_by(models.ApresGaia.n).limit(limit)))
+    rows.sort(key=lambda r: r.n != exact)  # stable : l'exacte d'abord, puis par n
+    return [
+        {
+            "n": r.n,
+            "intitule": r.intitule,
+            "n_appel": r.n_appel,
+            "adresse": r.adresse,
+            "cle_type": keys.key_kind(r.n),
+            "correspondance": "exacte" if r.n == exact else "ancienne_cle",
+        }
+        for r in rows
+    ]
 
 
 # --------------------------------------------------------------------- #
@@ -799,6 +828,8 @@ def _corporate_values(data: schemas.CorporateArClientIn) -> dict:
         "creance": data.creance,
         "numero_facture": _clean_optional(data.numero_facture),
         "date_facture": data.date_facture,
+        "date_remis_saj": data.date_remis_saj,
+        "date_remis_client": data.date_remis_client,
         "designation": data.designation.strip(),
         "observation": data.observation.strip(),
     }
@@ -908,6 +939,104 @@ def get_corporate_file(db: Session, code: str, file_id: int) -> models.Corporate
 
 
 def delete_corporate_file(db: Session, obj: models.CorporateArFile) -> None:
+    db.delete(obj)
+    db.commit()
+
+
+# --------------------------------------------------------------------- #
+#  Projects and project attachments                                      #
+# --------------------------------------------------------------------- #
+def _project_files_by_id(db: Session, project_ids: list[int] | None = None) -> dict[int, list[schemas.ProjectArFileOut]]:
+    F = models.ProjectArFile
+    stmt = select(F.id, F.project_id, F.name, F.content_type, F.size).order_by(F.id)
+    if project_ids is not None:
+        stmt = stmt.where(F.project_id.in_(project_ids))
+
+    out: dict[int, list[schemas.ProjectArFileOut]] = {}
+    for row in db.execute(stmt):
+        out.setdefault(row.project_id, []).append(
+            schemas.ProjectArFileOut(id=row.id, name=row.name, content_type=row.content_type, size=row.size)
+        )
+    return out
+
+
+def _project_out(project: models.ProjectArProject, files: list[schemas.ProjectArFileOut]) -> schemas.ProjectArOut:
+    out = schemas.ProjectArOut.model_validate(project)
+    out.files = files
+    return out
+
+
+def list_projects(db: Session) -> list[schemas.ProjectArOut]:
+    projects = list(
+        db.scalars(
+            select(models.ProjectArProject).order_by(
+                models.ProjectArProject.project_name, models.ProjectArProject.id
+            )
+        )
+    )
+    files = _project_files_by_id(db)
+    return [_project_out(project, files.get(project.id, [])) for project in projects]
+
+
+def get_project(db: Session, project_id: int) -> models.ProjectArProject | None:
+    return db.get(models.ProjectArProject, project_id)
+
+
+def project_out(db: Session, project: models.ProjectArProject) -> schemas.ProjectArOut:
+    return _project_out(project, _project_files_by_id(db, [project.id]).get(project.id, []))
+
+
+def _project_values(data: schemas.ProjectArIn) -> dict:
+    return {
+        "project_name": data.project_name,
+        "contract_number": data.contract_number,
+        "amendment_numbers": data.amendment_numbers,
+        "launch_date": data.launch_date,
+        "pieces_remises": data.pieces_remises,
+        "end_date": data.end_date,
+        "estimated_amount": data.estimated_amount,
+        "final_invoice_amount": data.final_invoice_amount,
+        "payment_date": data.payment_date,
+    }
+
+
+def create_project(db: Session, data: schemas.ProjectArIn) -> models.ProjectArProject:
+    obj = models.ProjectArProject(**_project_values(data))
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+def update_project(db: Session, obj: models.ProjectArProject, data: schemas.ProjectArIn) -> models.ProjectArProject:
+    for key, value in _project_values(data).items():
+        setattr(obj, key, value)
+    obj.updated_at = func.now()
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+def delete_project(db: Session, obj: models.ProjectArProject) -> None:
+    db.execute(delete(models.ProjectArFile).where(models.ProjectArFile.project_id == obj.id))
+    db.delete(obj)
+    db.commit()
+
+
+def add_project_file(db: Session, project_id: int, name: str, content_type: str, data: bytes) -> models.ProjectArFile:
+    obj = models.ProjectArFile(project_id=project_id, name=name, content_type=content_type, size=len(data), data=data)
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+def get_project_file(db: Session, project_id: int, file_id: int) -> models.ProjectArFile | None:
+    obj = db.get(models.ProjectArFile, file_id)
+    return obj if obj is not None and obj.project_id == project_id else None
+
+
+def delete_project_file(db: Session, obj: models.ProjectArFile) -> None:
     db.delete(obj)
     db.commit()
 

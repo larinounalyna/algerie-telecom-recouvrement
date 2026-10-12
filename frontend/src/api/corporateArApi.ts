@@ -17,6 +17,8 @@ interface ClientDto {
   creance: number;
   numero_facture: string | null;
   date_facture: string | null;
+  date_remis_saj: string | null;
+  date_remis_client: string | null;
   designation: string;
   observation: string;
   files: FileDto[];
@@ -32,6 +34,8 @@ const clientFromDto = (c: ClientDto): CorporateClient => ({
   creance: Number(c.creance),
   numeroFacture: c.numero_facture ?? "",
   dateFacture: c.date_facture ?? "",
+  dateRemisSaj: c.date_remis_saj ?? "",
+  dateRemisClient: c.date_remis_client ?? "",
   designation: c.designation,
   observation: c.observation,
   files: c.files.map(fileFromDto),
@@ -42,6 +46,8 @@ const inputToDto = (c: CorporateInput): InputDto => ({
   creance: c.creance,
   numero_facture: c.numeroFacture.trim() || null,
   date_facture: c.dateFacture || null,
+  date_remis_saj: c.dateRemisSaj || null,
+  date_remis_client: c.dateRemisClient || null,
   designation: c.designation,
   observation: c.observation,
 });

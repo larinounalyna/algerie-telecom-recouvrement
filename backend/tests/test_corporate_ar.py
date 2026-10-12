@@ -179,3 +179,14 @@ def test_websocket_push_on_change(client):
         code = create(client)["code"]
         msg = ws.receive_json()
     assert msg == {"event": "corporate_ar.changed", "payload": {"action": "created", "code": code}}
+
+
+def test_remise_dates_saj_and_client(client):
+    c = create(client, date_remis_saj="2025-03-10", date_remis_client="2025-04-02")
+    assert c["date_remis_saj"] == "2025-03-10" and c["date_remis_client"] == "2025-04-02"
+
+    got = client.get(f"{BASE}/clients/{c['code']}").json()
+    assert got["date_remis_saj"] == "2025-03-10" and got["date_remis_client"] == "2025-04-02"
+
+    r = client.put(f"{BASE}/clients/{c['code']}", json=payload(date_remis_saj=None, date_remis_client="2025-05-01"))
+    assert r.json()["date_remis_saj"] is None and r.json()["date_remis_client"] == "2025-05-01"

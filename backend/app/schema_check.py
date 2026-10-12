@@ -64,6 +64,25 @@ _CHECKS: list[tuple[str, str, str]] = [
         """,
     ),
     (
+        "corporate_ar_client.date_remis_saj / date_remis_client",
+        "sql/011_add_corporate_ar_remise_dates.sql",
+        """
+        SELECT 1 WHERE (
+            SELECT COUNT(*) FROM information_schema.columns
+            WHERE table_name = 'corporate_ar_client'
+              AND column_name IN ('date_remis_saj', 'date_remis_client')
+        ) = 2
+        """,
+    ),
+    (
+        "apres_gaia.n en BIGINT (clés à 14 chiffres)",
+        "sql/012_apres_gaia_n_bigint.sql",
+        """
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'apres_gaia' AND column_name = 'n' AND data_type = 'bigint'
+        """,
+    ),
+    (
         "apres_gaia_regelement.statut",
         "sql/005_add_apres_gaia_regelement_statut.sql",
         """

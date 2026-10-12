@@ -45,6 +45,10 @@ export interface CorporateClient {
   numeroFacture: string;
   /** Optional, ISO yyyy-mm-dd or "". */
   dateFacture: string;
+  /** Date de remise du dossier à la SAJ — optional, ISO yyyy-mm-dd or "". */
+  dateRemisSaj: string;
+  /** Date de remise au client — optional, ISO yyyy-mm-dd or "". */
+  dateRemisClient: string;
   designation: string; // one of DESIGNATIONS or free text
   observation: string; // one of OBSERVATIONS or free text
   files: CorporateFile[];

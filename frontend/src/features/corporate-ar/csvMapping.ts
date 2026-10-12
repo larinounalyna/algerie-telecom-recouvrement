@@ -45,7 +45,7 @@ function snapToPreset(value: string, presets: readonly string[]): string {
 
 /* ---------- import ---------- */
 
-type Field = "code" | "name" | "creance" | "numeroFacture" | "dateFacture" | "designation" | "observation";
+type Field = "code" | "name" | "creance" | "numeroFacture" | "dateFacture" | "dateRemisSaj" | "dateRemisClient" | "designation" | "observation";
 
 const ALIASES: Record<Field, string[]> = {
   code: ["code", "codeclient", "cle", "id", "key"],
@@ -53,6 +53,8 @@ const ALIASES: Record<Field, string[]> = {
   creance: ["creance", "creances", "montant", "solde", "soldedu", "montantdu", "dette"],
   numeroFacture: ["numerofacture", "numerodefacture", "nfacture", "numfacture", "nofacture", "nfact", "numfact", "facture"],
   dateFacture: ["datefacture", "datedefacture", "datefact", "date"],
+  dateRemisSaj: ["dateremissaj", "dateremisalasaj", "dateremisesaj", "remissaj", "datesaj"],
+  dateRemisClient: ["dateremisclient", "dateremisauclient", "dateremiseclient", "remisclient"],
   designation: ["designation"],
   observation: ["observation", "observations", "remarque", "remarques"],
 };
@@ -102,6 +104,11 @@ export function parseImport(raw: Record<string, string>[]): ParsedImport {
     const date = parseDate(dateRaw);
     if (date === null) out.badDates++;
 
+    const saj = parseDate(get(r, "dateRemisSaj"));
+    const remisClient = parseDate(get(r, "dateRemisClient"));
+    if (saj === null) out.badDates++;
+    if (remisClient === null) out.badDates++;
+
     const code = get(r, "code");
     out.rows.push({
       ...(code ? { code } : {}),
@@ -109,6 +116,8 @@ export function parseImport(raw: Record<string, string>[]): ParsedImport {
       creance: amount ?? 0,
       numeroFacture: get(r, "numeroFacture"),
       dateFacture: date ?? "",
+      dateRemisSaj: saj ?? "",
+      dateRemisClient: remisClient ?? "",
       designation: snapToPreset(get(r, "designation"), DESIGNATIONS),
       observation: snapToPreset(get(r, "observation"), OBSERVATIONS),
     });
@@ -126,6 +135,8 @@ export function toExportRows(list: CorporateClient[]): Record<string, string>[] 
     Créance: String(c.creance).replace(".", ","),
     "Numéro de facture": c.numeroFacture,
     "Date de facture": c.dateFacture,
+    "Date remis à la SAJ": c.dateRemisSaj,
+    "Date remis au client": c.dateRemisClient,
     Désignation: c.designation,
     Observation: c.observation,
     "Documents joints": String(c.files.length),

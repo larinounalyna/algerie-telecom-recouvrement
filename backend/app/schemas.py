@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .models import EngagementEtat, EnvoiEtat, EtatJuridique, RappelStatut, VersementStatut
 
@@ -408,6 +408,8 @@ class CorporateArClientIn(BaseModel):
     creance: float = Field(ge=0)
     numero_facture: Optional[str] = Field(default=None, max_length=100)
     date_facture: Optional[date] = None
+    date_remis_saj: Optional[date] = None
+    date_remis_client: Optional[date] = None
     designation: str = Field(min_length=1, max_length=255)
     observation: str = Field(min_length=1, max_length=255)
 
@@ -418,6 +420,8 @@ class CorporateArClientOut(ORMBase):
     creance: float
     numero_facture: Optional[str] = None
     date_facture: Optional[date] = None
+    date_remis_saj: Optional[date] = None
+    date_remis_client: Optional[date] = None
     designation: str
     observation: str
     files: list[CorporateArFileOut] = []
@@ -439,6 +443,69 @@ class CorporateArImportResult(BaseModel):
     added: int
     updated: int
     generated: int
+
+
+# --------------------------------------------------------------------- #
+#  Recherche Après Gaïa par ancienne ou nouvelle clé
+# --------------------------------------------------------------------- #
+class ApresGaiaCandidate(ORMBase):
+    n: int
+    intitule: Optional[str] = None
+    n_appel: Optional[str] = None
+    adresse: Optional[str] = None
+    cle_type: str  # "ancienne" | "normale" | "cabine"
+    correspondance: str  # "exacte" | "ancienne_cle"
+
+
+# --------------------------------------------------------------------- #
+#  Projects and project attachments                                      #
+# --------------------------------------------------------------------- #
+class ProjectArFileOut(ORMBase):
+    id: int
+    name: str
+    content_type: str
+    size: int
+
+
+class ProjectArIn(BaseModel):
+    project_name: str = Field(min_length=1, max_length=255)
+    contract_number: str = Field(min_length=1, max_length=100)
+    amendment_numbers: list[int] = Field(default_factory=list, max_length=100)
+    launch_date: date
+    pieces_remises: list[str] = Field(default_factory=list, max_length=100)
+    end_date: Optional[date] = None
+    estimated_amount: Optional[float] = Field(default=None, ge=0)
+    final_invoice_amount: Optional[float] = Field(default=None, ge=0)
+    payment_date: Optional[date] = None
+
+    @field_validator("amendment_numbers")
+    @classmethod
+    def validate_amendment_numbers(cls, value: list[int]) -> list[int]:
+        if any(number < 1 for number in value):
+            raise ValueError("Les numéros d'avenant doivent être positifs.")
+        if len(value) != len(set(value)):
+            raise ValueError("Un numéro d'avenant ne peut apparaître qu'une seule fois.")
+        return sorted(value)
+
+    @field_validator("project_name", "contract_number")
+    @classmethod
+    def trim_required_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Ce champ ne peut pas être vide.")
+        return value
+
+    @field_validator("pieces_remises")
+    @classmethod
+    def clean_pieces(cls, value: list[str]) -> list[str]:
+        return [piece.strip() for piece in value if piece.strip()]
+
+
+class ProjectArOut(ProjectArIn, ORMBase):
+    id: int
+    files: list[ProjectArFileOut] = Field(default_factory=list)
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
 
 # --------------------------------------------------------------------- #

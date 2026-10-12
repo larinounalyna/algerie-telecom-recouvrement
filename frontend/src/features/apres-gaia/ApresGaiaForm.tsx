@@ -45,7 +45,7 @@ export default function ApresGaiaForm({ onOpenDB, onViewHistory, onViewJuridique
   const [success, setSuccess] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const { profile, status, error: lookupError, search: lookup, clear, encaisser, valider, refuser } = useApresGaiaLookup();
+  const { profile, status, error: lookupError, candidates, search: lookup, pick, clear, encaisser, valider, refuser } = useApresGaiaLookup();
   const { getJuridique, commentaires, setCommentaire } = useAppData();
 
   const debtor = useMemo(() => (profile ? apresProfileToDebtor(profile) : null), [profile]);
@@ -128,7 +128,7 @@ export default function ApresGaiaForm({ onOpenDB, onViewHistory, onViewJuridique
           <input
             type="text"
             inputMode="numeric"
-            placeholder="ex. 1042"
+            placeholder="Ancienne clé ou clé à 14 chiffres"
             value={numInput}
             onChange={(e) => setNumInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && search()}
@@ -184,6 +184,31 @@ export default function ApresGaiaForm({ onOpenDB, onViewHistory, onViewJuridique
           </p>
         )}
         {status === "error" && <p className="text-xs text-red-600 mt-1 font-medium">{lookupError}</p>}
+        {candidates.length > 0 && (
+          <div role="group" aria-label="Comptes correspondants" className="mt-2 rounded-lg border-2 border-amber-300 bg-amber-50 p-2">
+            <p className="text-xs font-medium text-amber-900 mb-1.5">
+              {candidates.length} comptes correspondent à « {numInput.trim()} » — choisissez le bon :
+            </p>
+            <ul className="max-h-40 overflow-auto divide-y divide-amber-200">
+              {candidates.map((c) => (
+                <li key={c.n}>
+                  <button
+                    onClick={() => void pick(c.n)}
+                    className="w-full flex items-center gap-3 px-2 py-1.5 text-left text-sm hover:bg-amber-100 rounded"
+                  >
+                    <span className="font-mono text-[#1C2235]">{c.n}</span>
+                    <span className="flex-1 truncate text-gray-700">{c.intitule || "—"}</span>
+                    {c.n_appel && <span className="font-mono text-xs text-gray-500">{c.n_appel}</span>}
+                    <span className="px-2 py-0.5 rounded-full text-[10px] bg-white border border-amber-300 text-amber-800 whitespace-nowrap">
+                      {c.cle_type === "cabine" ? "Cabine publique" : c.cle_type === "normale" ? "Clé actuelle" : "Ancienne clé"}
+                      {c.correspondance === "exacte" ? " · exacte" : ""}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {f && debtor && (
           <p className="text-xs text-green-600 mt-1 font-medium">
             ✓ Données chargées

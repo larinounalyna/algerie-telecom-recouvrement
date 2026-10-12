@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import rappels as rappels_service
 from .config import get_settings
-from .routers import apres_gaia, avant_gaia, corporate_ar, rappels, ws
+from .routers import apres_gaia, avant_gaia, corporate_ar, projects, rappels, ws
 
 settings = get_settings()
 
@@ -57,6 +57,7 @@ app.include_router(avant_gaia.router)
 app.include_router(apres_gaia.router)
 app.include_router(rappels.router)
 app.include_router(corporate_ar.router)
+app.include_router(projects.router)
 app.include_router(ws.router)
 
 

@@ -1,5 +1,6 @@
 import { ApiError, apresGaiaApi } from "../api";
 import type {
+  ApresGaiaCandidate,
   ApresGaiaInsert,
   ApresGaiaMedRow,
   ApresGaiaProfile,
@@ -90,6 +91,12 @@ export async function findApresGaiaClient(n: string, signal?: AbortSignal): Prom
     if (e instanceof ApiError && e.isNotFound) return null;
     throw e;
   }
+}
+
+/** Candidates for a typed key (old 4-8 digits or current 14 digits). Never throws for "no match": returns []. */
+export async function searchApresGaiaClients(q: string, signal?: AbortSignal): Promise<ApresGaiaCandidate[]> {
+  if (!isValidAccountNumber(q)) return [];
+  return apresGaiaApi.searchClients(q.trim(), signal);
 }
 
 const toTranche = (g: ApresGaiaReglementRow): PaymentTranche => ({

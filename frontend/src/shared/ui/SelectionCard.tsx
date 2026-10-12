@@ -1,13 +1,14 @@
 import { ReactNode } from "react";
 
 /** Colour variants for SelectionCard: each keeps a distinct identity on an otherwise neutral card. */
-export type SelectionCardVariant = "red" | "emerald" | "amber" | "blue";
+export type SelectionCardVariant = "red" | "emerald" | "amber" | "blue" | "purple";
 
 const variantClasses: Record<SelectionCardVariant, { bar: string; badge: string; title: string }> = {
   red: { bar: "bg-brand", badge: "bg-brand", title: "group-hover:text-brand" },
   emerald: { bar: "bg-leaf", badge: "bg-leaf", title: "group-hover:text-leaf-dark" },
   amber: { bar: "bg-amber-500", badge: "bg-amber-500", title: "group-hover:text-amber-700" },
   blue: { bar: "bg-blue-600", badge: "bg-blue-600", title: "group-hover:text-blue-700" },
+  purple: { bar: "bg-violet-600", badge: "bg-violet-600", title: "group-hover:text-violet-700" },
 };
 
 interface SelectionCardProps {

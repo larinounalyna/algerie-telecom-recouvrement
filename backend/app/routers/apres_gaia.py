@@ -780,6 +780,16 @@ async def change_etat_juridique(
 # Aggregated search by Après Gaïa account number
 # --------------------------------------------------------------------- #
 
+@router.get("/search", response_model=list[schemas.ApresGaiaCandidate])
+def search_clients(
+    q: str = Query(..., min_length=1, max_length=20, description="Ancienne clé (4-8 chiffres) ou clé actuelle (14 chiffres)"),
+    db: Session = Depends(get_db),
+):
+    """Candidats pour une saisie : clé exacte, ou comptes dont la clé à 14 chiffres
+    contient cette ancienne clé. L'interface propose un choix s'il y en a plusieurs."""
+    return crud.search_apres_gaia_candidates(db, q)
+
+
 @router.get(
     "/client/{n}",
     response_model=schemas.ApresGaiaProfile

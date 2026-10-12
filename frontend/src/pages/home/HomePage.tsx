@@ -1,7 +1,7 @@
 import PageHero from "../../shared/ui/PageHero";
 import SelectionCard from "../../shared/ui/SelectionCard";
 
-export type Segment = "particuliers" | "entreprises";
+export type Segment = "particuliers" | "entreprises" | "projets";
 
 interface Props {
   onSelect: (s: Segment) => void;
@@ -15,9 +15,10 @@ export default function HomePage({ onSelect }: Props) {
       <div className="flex-1 flex flex-col items-center justify-center p-10">
         <PageHero title="Gestion du Recouvrement" subtitle="Service Recouvrement — choisissez le type de clients" />
 
-        <div className="w-full max-w-3xl grid grid-cols-2 gap-5">
-          <SelectionCard variant="red" badgeLabel="CP" title="Clients particuliers" subtitle="Hors Gaïa et Après Gaïa" onClick={() => onSelect("particuliers")} />
+        <div className="w-full max-w-6xl grid grid-cols-1 md:grid-cols-3 gap-5">
+          <SelectionCard variant="red" badgeLabel="LS" title="LSPN" subtitle="Hors Gaïa et Après Gaïa" onClick={() => onSelect("particuliers")} />
           <SelectionCard variant="emerald" badgeLabel="AR" title="Corporate AR" subtitle="Créances des entreprises" onClick={() => onSelect("entreprises")} />
+          <SelectionCard variant="purple" badgeLabel="PR" title="Projets" subtitle="Suivi des contrats et avenants" onClick={() => onSelect("projets")} />
         </div>
       </div>
       <footer className="flex-shrink-0 text-center text-xs text-muted py-3 border-t border-border bg-white">

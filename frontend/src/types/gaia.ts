@@ -164,6 +164,16 @@ export interface ReglementInsert {
 }
 
 /** GET /api/apres-gaia/client/{n} */
+/** One account proposed by GET /api/apres-gaia/search (old key 4-8 digits or current key 14 digits). */
+export interface ApresGaiaCandidate {
+  n: number;
+  intitule: string | null;
+  n_appel: string | null;
+  adresse: string | null;
+  cle_type: "ancienne" | "normale" | "cabine";
+  correspondance: "exacte" | "ancienne_cle";
+}
+
 export interface ApresGaiaProfile {
   informations_client: {
     n: number | null;

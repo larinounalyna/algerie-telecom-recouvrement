@@ -17,7 +17,7 @@ export default function ClientTypeSelectPage({ onSelect, onBack }: Props) {
         <BackLink onClick={onBack} />
       </div>
       <div className="flex-1 flex flex-col items-center justify-center p-10">
-        <PageHero title="Clients particuliers" subtitle="Choisissez le système de facturation" />
+        <PageHero title="LSPN" subtitle="Choisissez le système de facturation" />
 
         <div className="w-full max-w-3xl grid grid-cols-2 gap-5">
           <SelectionCard variant="amber" badgeLabel="HG" title="Hors Gaïa" subtitle="Abonnés de l'ancien système" onClick={() => onSelect("hors-gaia")} />

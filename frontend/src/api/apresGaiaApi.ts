@@ -1,5 +1,6 @@
 import type {
   ApresGaiaBulkResult,
+  ApresGaiaCandidate,
   ApresGaiaRappel,
   CasParticulierInput,
   RappelCheckResult,
@@ -24,6 +25,10 @@ export const apresGaiaApi = {
   /** Profile + règlements for one account number `n`. 404 → ApiError.isNotFound. */
   getClientProfile: (n: number | string, signal?: AbortSignal) =>
     request<ApresGaiaProfile>(`/api/apres-gaia/client/${encodeURIComponent(String(n))}`, { signal }),
+
+  /** Accounts matching an old key (4-8 digits) or a current key (14 digits). Several results → the agent chooses. */
+  searchClients: (q: string, signal?: AbortSignal) =>
+    request<ApresGaiaCandidate[]>(`/api/apres-gaia/search?q=${encodeURIComponent(q.trim())}`, { signal }),
 
   /** The whole `apres_gaia` table. */
   listDatabase: (signal?: AbortSignal) => request<ApresGaiaRow[]>("/api/apres-gaia/database", { signal }),

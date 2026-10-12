@@ -54,6 +54,8 @@ psql -d at_recouvrement -f sql/005_add_apres_gaia_regelement_statut.sql
 psql -d at_recouvrement -f sql/006_schema_apres_gaia_med.sql
 psql -d at_recouvrement -f sql/007_add_apres_gaia_med_cas_particulier.sql
 psql -d at_recouvrement -f sql/008_schema_apres_gaia_rappel.sql
+psql -d at_recouvrement -f sql/009_schema_corporate_ar.sql
+psql -d at_recouvrement -f sql/010_schema_projects.sql
 
 # Or, all in one go (safe to re-run any time, on any DB, however out of date):
 bash sql/apply_all.sh at_recouvrement
@@ -78,6 +80,8 @@ Open http://localhost:8000/docs for interactive Swagger (every endpoint, with a
 | `006_schema_apres_gaia_med.sql`              | Your `apres_gaia_med` DDL (mises en demeure + engagement + état juridique). **Does not include** the `cas_particulier*` columns — those are added by `007` below, on top of this. `CREATE TABLE IF NOT EXISTS` instead of `DROP TABLE`, so a re-run never wipes data. Adds an index on `n`. |
 | `007_add_apres_gaia_med_cas_particulier.sql` | Adds `cas_particulier`, `cas_particulier_date`, `cas_particulier_commentaire` to `apres_gaia_med` (`ADD COLUMN IF NOT EXISTS`, additive). **Required** for the "cas particulier" editor in the engagement panel — without it, that endpoint fails with a `column ... does not exist` error. |
 | `008_schema_apres_gaia_rappel.sql`           | **Nouvelle table** `apres_gaia_rappel` (notifications « client engagé sans versement depuis un mois »). Aucune table existante n'est modifiée. `CREATE ... IF NOT EXISTS`, re-runnable. **Required** for the rappels bell / `/api/apres-gaia/rappels*` endpoints.                           |
+| `009_schema_corporate_ar.sql`                | Corporate AR clients and their uploaded documents. |
+| `010_schema_projects.sql`                    | Projects, multiple amendment numbers, delivered-pieces lists, and uploaded project documents. Additive and re-runnable. |
 
 **If either the "cas particulier" save or the rappels bell isn't working, this is almost always why: `007` and/or `008` were never applied.** All eight files are idempotent — just run `bash sql/apply_all.sh <your db name>` (or the individual `psql -f` commands above) again; nothing existing is dropped or overwritten.
 
