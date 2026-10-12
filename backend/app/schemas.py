@@ -251,6 +251,25 @@ class ApresGaiaMedOut(ORMBase):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
+    @field_validator(
+        "invitation_paiement_etat",
+        "med_lettre_etat",
+        "engagement_etat",
+        "med_huissier_etat",
+        "etat_juridique",
+        mode="before",
+    )
+    @classmethod
+    def default_null_enum_values(cls, value, info):
+        if value is None:
+            field_name = info.field_name
+            if field_name in {"invitation_paiement_etat", "med_lettre_etat", "med_huissier_etat"}:
+                return EnvoiEtat.NON_ENVOYEE
+            if field_name == "engagement_etat":
+                return EngagementEtat.NON_ENGAGE
+            return EtatJuridique.PROCEDURE_EN_COURS
+        return value
+
 
 class ApresGaiaMedUpdate(BaseModel):
     """Body for PATCH /api/apres-gaia/{n}/med — every field optional, only

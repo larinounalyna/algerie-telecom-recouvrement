@@ -1,13 +1,10 @@
-﻿"""Compatibility data models for the raw-SQL migration.
+﻿from __future__ import annotations
 
-This project previously used SQLAlchemy ORM table declarations. Those have been
-removed so the backend can use schema-defined raw SQL access instead.
-"""
-from __future__ import annotations
-
-from dataclasses import dataclass, field
 from datetime import date, datetime
 from enum import Enum
+
+from sqlalchemy import JSON, Date, DateTime, Float, ForeignKey, Integer, LargeBinary, String, Text
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 class VersementStatut(str, Enum):
@@ -41,208 +38,215 @@ class RappelStatut(str, Enum):
     resolu = "resolu"
 
 
-@dataclass
-class AvantGaia:
+class Base(DeclarativeBase):
+    pass
+
+
+class AvantGaia(Base):
     __tablename__ = "avant_gaia"
-    ref: int | None = None
-    actel: str | None = None
-    n_abonne: str | None = None
-    intitule: str | None = None
-    adresse_01: str | None = None
-    adresse_02: str | None = None
-    dnpf: int | None = None
-    type_de_compte: int | None = None
-    abonnement: float | None = None
-    dus_anterieur: float | None = None
-    montant_compteur: float | None = None
-    nombre_ticket: int | None = None
-    montant_ticket: float | None = None
-    credit: float | None = None
-    code_payeur: int | None = None
-    n_ccp: int | None = None
-    somme_ht: float | None = None
-    ttc: float | None = None
-    tva: float | None = None
-    nouveau_index: int | None = None
-    avoir: float | None = None
-    n_bimestre: int | None = None
-    annee_bimestre: int | None = None
-    n_s_t: int | None = None
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
+
+    ref: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    actel: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    n_abonne: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+    intitule: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    adresse_01: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    adresse_02: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    dnpf: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    type_de_compte: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    abonnement: Mapped[float | None] = mapped_column(Float, nullable=True)
+    dus_anterieur: Mapped[float | None] = mapped_column(Float, nullable=True)
+    montant_compteur: Mapped[float | None] = mapped_column(Float, nullable=True)
+    nombre_ticket: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    montant_ticket: Mapped[float | None] = mapped_column(Float, nullable=True)
+    credit: Mapped[float | None] = mapped_column(Float, nullable=True)
+    code_payeur: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    n_ccp: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    somme_ht: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ttc: Mapped[float | None] = mapped_column(Float, nullable=True)
+    tva: Mapped[float | None] = mapped_column(Float, nullable=True)
+    nouveau_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    avoir: Mapped[float | None] = mapped_column(Float, nullable=True)
+    n_bimestre: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    annee_bimestre: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    n_s_t: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True)
 
 
-@dataclass
-class AvantGaiaVersement:
+class AvantGaiaVersement(Base):
     __tablename__ = "avant_gaia_versement"
-    ref: int | None = None
-    actel: str | None = None
-    n_abonne: str | None = None
-    montant_versement: float | None = None
-    n_bimestre: int | None = None
-    annee_bimestre: int | None = None
-    n_versement: int | None = None
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
+
+    ref: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    actel: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    n_abonne: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+    montant_versement: Mapped[float | None] = mapped_column(Float, nullable=True)
+    n_bimestre: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    annee_bimestre: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    n_versement: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True)
 
 
-@dataclass
-class ApresGaia:
+class ApresGaia(Base):
     __tablename__ = "apres_gaia"
-    n: int | None = None
-    codetat: int | None = None
-    codsit: int | None = None
-    cg: int | None = None
-    n_appel: str | None = None
-    intitule: str | None = None
-    adresse: str | None = None
-    code_postal: int | None = None
-    type_de_compte: int | None = None
-    abonnement: float | None = None
-    dus_ant: float | None = None
-    montant_compteur: float | None = None
-    nbre_ticket: int | None = None
-    ticket: float | None = None
-    credit: float | None = None
-    code_payeur: int | None = None
-    ccp: int | None = None
-    date_vigueur_abt: date | None = None
-    date_derniere_modif: date | None = None
-    cod_cpt: int | None = None
-    nouvel_index: int | None = None
-    ancien_index: int | None = None
-    date_rnp: date | None = None
-    dnpf: date | None = None
-    repere: str | None = None
-    actel: str | None = None
-    n_client: int | None = None
-    commune: str | None = None
-    bat: str | None = None
-    esc: str | None = None
-    etage: str | None = None
-    porte: str | None = None
-    ccat: int | None = None
-    ndos: int | None = None
-    nvdi: str | None = None
-    motif_res: str | None = None
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
+
+    n: Mapped[int] = mapped_column(Integer, primary_key=True)
+    codetat: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    codsit: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cg: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    n_appel: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    intitule: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    adresse: Mapped[str | None] = mapped_column(Text, nullable=True)
+    code_postal: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    type_de_compte: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    abonnement: Mapped[float | None] = mapped_column(Float, nullable=True)
+    dus_ant: Mapped[float | None] = mapped_column(Float, nullable=True)
+    montant_compteur: Mapped[float | None] = mapped_column(Float, nullable=True)
+    nbre_ticket: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ticket: Mapped[float | None] = mapped_column(Float, nullable=True)
+    credit: Mapped[float | None] = mapped_column(Float, nullable=True)
+    code_payeur: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ccp: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    date_vigueur_abt: Mapped[date | None] = mapped_column(Date, nullable=True)
+    date_derniere_modif: Mapped[date | None] = mapped_column(Date, nullable=True)
+    cod_cpt: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    nouvel_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ancien_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    date_rnp: Mapped[date | None] = mapped_column(Date, nullable=True)
+    dnpf: Mapped[date | None] = mapped_column(Date, nullable=True)
+    repere: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    actel: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    n_client: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    commune: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    bat: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    esc: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    etage: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    porte: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    ccat: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ndos: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    nvdi: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    motif_res: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True)
 
 
-@dataclass
-class ApresGaiaReglement:
+class ApresGaiaReglement(Base):
     __tablename__ = "apres_gaia_regelement"
-    id: int | None = None
-    n: int | None = None
-    montant: float | None = None
-    date_reglement: date | None = None
-    reference: str | None = None
-    statut: str | None = None
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
+
+    ref: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    n: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    montant: Mapped[float | None] = mapped_column(Float, nullable=True)
+    somme_versement: Mapped[float | None] = mapped_column(Float, nullable=True)
+    date_reglement: Mapped[date | None] = mapped_column(Date, nullable=True)
+    date_versement: Mapped[date | None] = mapped_column(Date, nullable=True)
+    reference: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    lieu_versement: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    statut: Mapped[str | None] = mapped_column(String(30), nullable=True, default=VersementStatut.en_attente.value)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True)
 
 
-@dataclass
-class ApresGaiaMed:
+class ApresGaiaMed(Base):
     __tablename__ = "apres_gaia_med"
-    id: int | None = None
-    n: int | None = None
-    invitation_paiement_date: date | None = None
-    invitation_paiement_etat: str | None = None
-    med_lettre_date: date | None = None
-    med_lettre_etat: str | None = None
-    engagement_date: date | None = None
-    engagement_etat: str | None = None
-    med_huissier_nom: str | None = None
-    med_huissier_prenom: str | None = None
-    med_huissier_date: date | None = None
-    med_huissier_etat: str | None = None
-    cas_particulier: str | None = None
-    cas_particulier_date: date | None = None
-    cas_particulier_commentaire: str | None = None
-    etat_juridique: str | None = None
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    n: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    invitation_paiement_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    invitation_paiement_etat: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    med_lettre_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    med_lettre_etat: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    engagement_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    engagement_etat: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    med_huissier_nom: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    med_huissier_prenom: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    med_huissier_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    med_huissier_etat: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    cas_particulier: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    cas_particulier_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    cas_particulier_commentaire: Mapped[str | None] = mapped_column(Text, nullable=True)
+    etat_juridique: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True)
 
 
-@dataclass
-class ApresGaiaRappel:
+class ApresGaiaRappel(Base):
     __tablename__ = "apres_gaia_rappel"
-    id: int | None = None
-    n: int | None = None
-    type: str | None = None
-    reference_date: date | None = None
-    reference_source: str | None = None
-    echeance_date: date | None = None
-    mois_impayes: int | None = None
-    jours_ecoules: int | None = None
-    solde_du: float | None = None
-    message: str | None = None
-    statut: str | None = None
-    created_at: datetime | None = None
-    read_at: datetime | None = None
-    resolved_at: datetime | None = None
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    n: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    type: Mapped[str | None] = mapped_column("type", String(50), nullable=True)
+    reference_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    reference_source: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    echeance_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    mois_impayes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    jours_ecoules: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    solde_du: Mapped[float | None] = mapped_column(Float, nullable=True)
+    message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    statut: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
-@dataclass
-class CorporateArClient:
+class CorporateArClient(Base):
     __tablename__ = "corporate_ar_client"
-    code: str | None = None
-    name: str | None = None
-    creance: float | None = None
-    numero_facture: str | None = None
-    date_facture: date | None = None
-    date_remis_saj: date | None = None
-    date_remis_client: date | None = None
-    designation: str | None = None
-    observation: str | None = None
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
+
+    code: Mapped[str] = mapped_column(String(50), primary_key=True)
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    creance: Mapped[float | None] = mapped_column(Float, nullable=True)
+    numero_facture: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    date_facture: Mapped[date | None] = mapped_column(Date, nullable=True)
+    date_remis_saj: Mapped[date | None] = mapped_column(Date, nullable=True)
+    date_remis_client: Mapped[date | None] = mapped_column(Date, nullable=True)
+    designation: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    observation: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True)
 
 
-@dataclass
-class CorporateArFile:
+class CorporateArFile(Base):
     __tablename__ = "corporate_ar_file"
-    id: int | None = None
-    client_code: str | None = None
-    name: str | None = None
-    content_type: str | None = None
-    size: int | None = None
-    data: bytes | None = None
-    created_at: datetime | None = None
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    client_code: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    content_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
 
 
-@dataclass
-class CorporateArCounter:
+class CorporateArCounter(Base):
     __tablename__ = "corporate_ar_counter"
-    id: int | None = None
-    last_number: int | None = None
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    last_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
-@dataclass
-class ProjectArProject:
+class ProjectArProject(Base):
     __tablename__ = "project_ar_project"
-    id: int | None = None
-    project_name: str | None = None
-    contract_number: str | None = None
-    amendment_numbers: list[int] = field(default_factory=list)
-    launch_date: date | None = None
-    pieces_remises: list[str] = field(default_factory=list)
-    end_date: date | None = None
-    estimated_amount: float | None = None
-    final_invoice_amount: float | None = None
-    payment_date: date | None = None
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    project_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    contract_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    amendment_numbers: Mapped[list[int]] = mapped_column(JSON, nullable=False, default=list)
+    launch_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    pieces_remises: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    estimated_amount: Mapped[float | None] = mapped_column(Float, nullable=True)
+    final_invoice_amount: Mapped[float | None] = mapped_column(Float, nullable=True)
+    payment_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True)
 
 
-@dataclass
-class ProjectArFile:
+class ProjectArFile(Base):
     __tablename__ = "project_ar_file"
-    id: int | None = None
-    project_id: int | None = None
-    name: str | None = None
-    content_type: str | None = None
-    size: int | None = None
-    data: bytes | None = None
-    created_at: datetime | None = None
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    project_id: Mapped[int | None] = mapped_column(ForeignKey("project_ar_project.id", ondelete="CASCADE"), nullable=True, index=True)
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    content_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
