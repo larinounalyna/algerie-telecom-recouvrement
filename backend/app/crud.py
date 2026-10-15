@@ -946,70 +946,99 @@ def delete_corporate_file(db: Session, obj: models.CorporateArFile) -> None:
 # --------------------------------------------------------------------- #
 #  Projects and project attachments                                      #
 # --------------------------------------------------------------------- #
-def _project_files_by_id(db: Session, project_ids: list[int] | None = None) -> dict[int, list[schemas.ProjectArFileOut]]:
-    F = models.ProjectArFile
-    stmt = select(F.id, F.project_id, F.name, F.content_type, F.size).order_by(F.id)
-    if project_ids is not None:
-        stmt = stmt.where(F.project_id.in_(project_ids))
+project_CODE_PREFIX = "pro-"
+_project_CODE_RE = re.compile(r"^CAR-(\d+)$", re.IGNORECASE)
 
-    out: dict[int, list[schemas.ProjectArFileOut]] = {}
+
+def _proj_files_by_client(db: Session, codes: list[str] | None = None) -> dict[str, list[models.CorporateArFile]]:
+    """Métadonnées des fichiers, SANS les octets (colonnes ciblées)."""
+
+    F = models.CorporateArFile
+    stmt = select(F.id, F.client_code, F.name, F.content_type, F.size).order_by(F.id)
+    if codes is not None:
+        stmt = stmt.where(F.client_code.in_(codes))
+
+    out: dict[str, list] = {}
     for row in db.execute(stmt):
-        out.setdefault(row.project_id, []).append(
-            schemas.ProjectArFileOut(id=row.id, name=row.name, content_type=row.content_type, size=row.size)
-        )
+        out.setdefault(row.client_code, []).append(schemas.CorporateArFileOut(id=row.id, name=row.name, content_type=row.content_type, size=row.size))
     return out
 
 
-def _project_out(project: models.ProjectArProject, files: list[schemas.ProjectArFileOut]) -> schemas.ProjectArOut:
-    out = schemas.ProjectArOut.model_validate(project)
+def _corporate_out(client: models.CorporateArClient, files: list) -> schemas.CorporateArClientOut:
+    out = schemas.CorporateArClientOut.model_validate(client)
     out.files = files
     return out
 
 
-def list_projects(db: Session) -> list[schemas.ProjectArOut]:
-    projects = list(
-        db.scalars(
-            select(models.ProjectArProject).order_by(
-                models.ProjectArProject.project_name, models.ProjectArProject.id
-            )
-        )
-    )
-    files = _project_files_by_id(db)
-    return [_project_out(project, files.get(project.id, [])) for project in projects]
+def list_corporate_clients(db: Session) -> list[schemas.CorporateArClientOut]:
+    clients = list(db.scalars(select(models.CorporateArClient).order_by(models.CorporateArClient.name, models.CorporateArClient.code)))
+    files = _corporate_files_by_client(db)
+    return [_corporate_out(c, files.get(c.code, [])) for c in clients]
 
 
-def get_project(db: Session, project_id: int) -> models.ProjectArProject | None:
-    return db.get(models.ProjectArProject, project_id)
+def get_corporate_client(db: Session, code: str) -> models.CorporateArClient | None:
+    return db.get(models.CorporateArClient, code)
 
 
-def project_out(db: Session, project: models.ProjectArProject) -> schemas.ProjectArOut:
-    return _project_out(project, _project_files_by_id(db, [project.id]).get(project.id, []))
+def corporate_client_out(db: Session, client: models.CorporateArClient) -> schemas.CorporateArClientOut:
+    return _corporate_out(client, _corporate_files_by_client(db, [client.code]).get(client.code, []))
 
 
-def _project_values(data: schemas.ProjectArIn) -> dict:
+def _clean_optional(value: str | None) -> str | None:
+    value = (value or "").strip()
+    return value or None
+
+
+def _corporate_values(data: schemas.CorporateArClientIn) -> dict:
     return {
-        "project_name": data.project_name,
-        "contract_number": data.contract_number,
-        "amendment_numbers": data.amendment_numbers,
-        "launch_date": data.launch_date,
-        "pieces_remises": data.pieces_remises,
-        "end_date": data.end_date,
-        "estimated_amount": data.estimated_amount,
-        "final_invoice_amount": data.final_invoice_amount,
-        "payment_date": data.payment_date,
+        "name": data.name.strip(),
+        "creance": data.creance,
+        "numero_facture": _clean_optional(data.numero_facture),
+        "date_facture": data.date_facture,
+        "date_remis_saj": data.date_remis_saj,
+        "date_remis_client": data.date_remis_client,
+        "designation": data.designation.strip(),
+        "observation": data.observation.strip(),
     }
 
 
-def create_project(db: Session, data: schemas.ProjectArIn) -> models.ProjectArProject:
-    obj = models.ProjectArProject(**_project_values(data))
+def allocate_corporate_codes(db: Session, count: int) -> list[str]:
+    """Réserve `count` codes CAR-xxxxxx. Le compteur ne fait que monter (le code
+    d'un client supprimé n'est jamais réattribué) et reste au-dessus de tout code
+    CAR-xxxxxx déjà présent (ex. arrivé par un import). Ne commit pas : la
+    réservation fait partie de la transaction de l'appelant."""
+
+    if count <= 0:
+        return []
+
+    counter = db.scalars(select(models.CorporateArCounter).where(models.CorporateArCounter.id == 1).with_for_update()).first()
+    if counter is None:
+        counter = models.CorporateArCounter(id=1, last_number=0)
+        db.add(counter)
+        db.flush()
+
+    max_existing = 0
+    for (code,) in db.execute(select(models.CorporateArClient.code).where(models.CorporateArClient.code.like(f"{CORPORATE_CODE_PREFIX}%"))):
+        m = _CORPORATE_CODE_RE.match(code)
+        if m:
+            max_existing = max(max_existing, int(m.group(1)))
+
+    start = max(counter.last_number or 0, max_existing) + 1
+    counter.last_number = start + count - 1
+    return [f"{CORPORATE_CODE_PREFIX}{start + i:06d}" for i in range(count)]
+
+
+def create_corporate_client(db: Session, data: schemas.CorporateArClientIn) -> models.CorporateArClient:
+    [code] = allocate_corporate_codes(db, 1)
+    obj = models.CorporateArClient(code=code, **_corporate_values(data))
     db.add(obj)
     db.commit()
     db.refresh(obj)
     return obj
 
 
-def update_project(db: Session, obj: models.ProjectArProject, data: schemas.ProjectArIn) -> models.ProjectArProject:
-    for key, value in _project_values(data).items():
+def update_corporate_client(db: Session, obj: models.CorporateArClient, data: schemas.CorporateArClientIn) -> models.CorporateArClient:
+    for key, value in _corporate_values(data).items():
         setattr(obj, key, value)
     obj.updated_at = func.now()
     db.commit()
@@ -1017,29 +1046,68 @@ def update_project(db: Session, obj: models.ProjectArProject, data: schemas.Proj
     return obj
 
 
-def delete_project(db: Session, obj: models.ProjectArProject) -> None:
-    db.execute(delete(models.ProjectArFile).where(models.ProjectArFile.project_id == obj.id))
+def delete_corporate_client(db: Session, obj: models.CorporateArClient) -> None:
+    # Les fichiers partent avec lui (ON DELETE CASCADE) ; on les supprime aussi
+    # explicitement pour que ce soit vrai même sans les contraintes (SQLite de test).
+    db.execute(delete(models.CorporateArFile).where(models.CorporateArFile.client_code == obj.code))
     db.delete(obj)
     db.commit()
 
 
-def add_project_file(db: Session, project_id: int, name: str, content_type: str, data: bytes) -> models.ProjectArFile:
-    obj = models.ProjectArFile(project_id=project_id, name=name, content_type=content_type, size=len(data), data=data)
+def import_corporate_clients(db: Session, rows: list[schemas.CorporateArImportRow]) -> schemas.CorporateArImportResult:
+    """Import CSV. Une ligne avec un code déjà connu met à jour ce client (ses
+    documents sont conservés) ; une ligne sans code reçoit un code généré. Le
+    même code deux fois dans le fichier : la dernière ligne gagne. Tout ou rien."""
+
+    keyed: dict[str, schemas.CorporateArImportRow] = {}
+    keyless: list[schemas.CorporateArImportRow] = []
+    for r in rows:
+        code = (r.code or "").strip()
+        if code:
+            keyed[code] = r
+        else:
+            keyless.append(r)
+
+    existing = set(db.scalars(select(models.CorporateArClient.code).where(models.CorporateArClient.code.in_(list(keyed)))) if keyed else [])
+
+    for code, r in keyed.items():
+        values = _corporate_values(r)
+        obj = db.get(models.CorporateArClient, code)
+        if obj is None:
+            db.add(models.CorporateArClient(code=code, **values))
+        else:
+            for k, v in values.items():
+                setattr(obj, k, v)
+            obj.updated_at = func.now()
+    db.flush()  # les codes importés existent avant d'allouer les nouveaux : aucune collision
+
+    for code, r in zip(allocate_corporate_codes(db, len(keyless)), keyless):
+        db.add(models.CorporateArClient(code=code, **_corporate_values(r)))
+
+    db.commit()
+    return schemas.CorporateArImportResult(
+        added=(len(keyed) - len(existing)) + len(keyless),
+        updated=len(existing),
+        generated=len(keyless),
+    )
+
+
+def add_corporate_file(db: Session, code: str, name: str, content_type: str, data: bytes) -> models.CorporateArFile:
+    obj = models.CorporateArFile(client_code=code, name=name, content_type=content_type, size=len(data), data=data)
     db.add(obj)
     db.commit()
     db.refresh(obj)
     return obj
 
 
-def get_project_file(db: Session, project_id: int, file_id: int) -> models.ProjectArFile | None:
-    obj = db.get(models.ProjectArFile, file_id)
-    return obj if obj is not None and obj.project_id == project_id else None
+def get_corporate_file(db: Session, code: str, file_id: int) -> models.CorporateArFile | None:
+    obj = db.get(models.CorporateArFile, file_id)
+    return obj if obj is not None and obj.client_code == code else None
 
 
-def delete_project_file(db: Session, obj: models.ProjectArFile) -> None:
+def delete_corporate_file(db: Session, obj: models.CorporateArFile) -> None:
     db.delete(obj)
     db.commit()
-
 
 # --------------------------------------------------------------------- #
 #  Insertion en masse / suppression totale — toutes les tables           #
